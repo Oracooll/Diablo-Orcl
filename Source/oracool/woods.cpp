@@ -42,6 +42,7 @@
 #include "oracool/colour_light.h" // TownIsDark - the wisps and the ring brighter by night
 #include "oracool/splats.h"       // the wisps' glow handed to the graphics card with the other lights
 #include "objects.h"              // the vanilla objects along the roads
+#include "oracool/missile_tint.h" // LitPaletteTable - the area objects' hover outline
 #include "engine/backbuffer_state.hpp" // RedrawComponent - the fairy ring's mana
 #include "oracool/rage.h"                // UsesRage - the Barbarian has no mana for the ring to speed
 #include "player.h"
@@ -5577,6 +5578,139 @@ void DrawTownFrostMouth(const Surface &out, Point tile, Point target, int light)
 	if (mouth.px.empty())
 		return;
 	DrawPicture(out, mouth, target.x + 32 - mouth.footX, target.y - 15 - mouth.footY, 0, 0, mouth.w, mouth.h, BrightnessFor(light));
+}
+
+namespace {
+
+/** @brief One area object's two paintings (before, after) and where each stands. */
+struct AreaObjectFile {
+	const char *before;
+	const char *after;
+	int footX;
+	int footY;
+};
+// At half the paintings' size, as the frost mouth: the briefs paint a hero 150 px tall.
+constexpr int AreaObjectPercent = 50;
+constexpr AreaObjectFile FrostBarrel { "levels\\frost\\objects\\barrel_frozen.png", "levels\\frost\\objects\\barrel_frozen_broken.png", 48, 116 };
+constexpr AreaObjectFile FrostChest { "levels\\frost\\objects\\chest_ice.png", "levels\\frost\\objects\\chest_ice_open.png", 64, 100 };
+constexpr AreaObjectFile FrostShrine { "levels\\frost\\objects\\shrine_ice.png", "levels\\frost\\objects\\shrine_ice_spent.png", 64, 180 };
+constexpr AreaObjectFile FrostTorch { "levels\\frost\\objects\\torch_stand.png", "levels\\frost\\objects\\torch_stand_out.png", 32, 164 };
+constexpr AreaObjectFile FrostCorpse { "levels\\frost\\objects\\corpse_snow.png", "levels\\frost\\objects\\corpse_snow_searched.png", 80, 84 };
+constexpr AreaObjectFile DesertSarcophagus { "levels\\desert\\objects\\sarcophagus.png", "levels\\desert\\objects\\sarcophagus_open.png", 80, 100 };
+constexpr AreaObjectFile DesertShrine { "levels\\desert\\objects\\shrine_sun.png", "levels\\desert\\objects\\shrine_sun_spent.png", 64, 180 };
+constexpr AreaObjectFile DesertBrazier { "levels\\desert\\objects\\brazier_tripod.png", "levels\\desert\\objects\\brazier_tripod_out.png", 40, 148 };
+constexpr AreaObjectFile DesertCorpse { "levels\\desert\\objects\\corpse_bier.png", "levels\\desert\\objects\\corpse_bier_searched.png", 96, 100 };
+
+/**
+ * @brief The painting @p type wears in @p area: the Frost Caves have barrels (urns too), chests, shrines, candle stands and corpses
+ * (a sarcophagus there is a corpse in the snow); the desert sarcophagi, shrines, candle stands and corpses - its barrels and chests
+ * keep the game's own. The candle stand is always lit (the game's light on it), so it never shows its burnt-out picture.
+ */
+const AreaObjectFile *AreaObjectFor(OrclArea area, int type)
+{
+	switch (static_cast<_object_id>(type)) {
+	case OBJ_BARREL:
+	case OBJ_BARRELEX:
+	case OBJ_URN:
+	case OBJ_URNEX:
+		return area == OrclArea::Frost ? &FrostBarrel : nullptr;
+	case OBJ_CHEST1:
+	case OBJ_CHEST2:
+	case OBJ_CHEST3:
+		return area == OrclArea::Frost ? &FrostChest : nullptr;
+	case OBJ_GOATSHRINE:
+	case OBJ_CAULDRON:
+	case OBJ_SHRINEL:
+	case OBJ_SHRINER:
+		return area == OrclArea::Frost ? &FrostShrine : area == OrclArea::Desert ? &DesertShrine : nullptr;
+	case OBJ_CANDLE2:
+		return area == OrclArea::Frost ? &FrostTorch : area == OrclArea::Desert ? &DesertBrazier : nullptr;
+	case OBJ_DECAP:
+		return area == OrclArea::Frost ? &FrostCorpse : area == OrclArea::Desert ? &DesertCorpse : nullptr;
+	case OBJ_SARC:
+		return area == OrclArea::Frost ? &FrostCorpse : area == OrclArea::Desert ? &DesertSarcophagus : nullptr;
+	default:
+		return nullptr;
+	}
+}
+
+/** @brief The area whose objects the current level wears, if it has any (the Frost Caves and the desert, floors and caves). */
+std::optional<OrclArea> ObjectArea()
+{
+	if (!setlevel)
+		return std::nullopt;
+	const OrclArea area = AreaOfLevel(setlvlnum);
+	if (area == OrclArea::Woods)
+		return std::nullopt;
+	if (area == OrclArea::Desert && !IsDesertLevel(setlvlnum) && !IsDesertCaveLevel(setlvlnum))
+		return std::nullopt;
+	return area;
+}
+
+const char *AreaObjectPath(int type, bool used)
+{
+	const std::optional<OrclArea> area = ObjectArea();
+	if (!area)
+		return nullptr;
+	const AreaObjectFile *file = AreaObjectFor(*area, type);
+	if (file == nullptr)
+		return nullptr;
+	return used && type != OBJ_CANDLE2 ? file->after : file->before;
+}
+
+} // namespace
+
+const char *AreaObjectPictureForTest(int objectType, bool used)
+{
+	return AreaObjectPath(objectType, used);
+}
+
+bool DrawAreaObject(const Surface &out, int objectType, bool used, Point foot, bool hovered, int light)
+{
+	if (out.isIndexed())
+		return false;
+	const std::optional<OrclArea> area = ObjectArea();
+	if (!area)
+		return false;
+	const AreaObjectFile *file = AreaObjectFor(*area, objectType);
+	if (file == nullptr)
+		return false;
+	const bool after = used && objectType != OBJ_CANDLE2;
+	// Loaded once each, kept for the game (a handful of small pictures); a painting that fails to load leaves the vanilla sprite.
+	static std::unordered_map<std::string, Picture> pictures;
+	const char *path = after ? file->after : file->before;
+	auto [it, added] = pictures.try_emplace(path);
+	if (added) {
+		const TreeFile asTree { path, file->footX, file->footY, AreaObjectPercent, false, *area };
+		LoadStanding(asTree, it->second);
+	}
+	const Picture &pic = it->second;
+	if (pic.px.empty())
+		return false;
+	const int left = foot.x - pic.footX;
+	const int top = foot.y - pic.footY;
+	if (hovered) {
+		// The game's own hover outline (palette 194, as ClxDrawOutlineSkipColorZero draws it): every clear pixel beside an opaque one.
+		const uint32_t outline = (LitPaletteTable(0)[194] & 0xFFFFFF) | 0x010101;
+		const auto opaque = [&](int x, int y) {
+			return x >= 0 && y >= 0 && x < pic.w && y < pic.h && (pic.px[static_cast<size_t>(y) * pic.w + x] & 0xFF000000U) != 0;
+		};
+		for (int y = -1; y <= pic.h; y++) {
+			const int sy = top + y;
+			if (sy < 0 || sy >= out.h())
+				continue;
+			uint32_t *row = out.at<uint32_t>(0, sy);
+			for (int x = -1; x <= pic.w; x++) {
+				const int sx = left + x;
+				if (sx < 0 || sx >= out.w() || opaque(x, y))
+					continue;
+				if (opaque(x - 1, y) || opaque(x + 1, y) || opaque(x, y - 1) || opaque(x, y + 1))
+					row[sx] = outline;
+			}
+		}
+	}
+	DrawPicture(out, pic, left, top, 0, 0, pic.w, pic.h, BrightnessFor(light));
+	return true;
 }
 
 void DrawWoodsGateTint(const Surface &out, Point tile, Point target)

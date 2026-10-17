@@ -292,6 +292,15 @@ void DrawWoodsGateTint(const Surface &out, Point tile, Point target);
  * edge's gate, drawn with the town's cells when the tile it stands on is drawn. Nothing on an indexed surface or off that tile.
  */
 void DrawTownFrostMouth(const Surface &out, Point tile, Point target, int light);
+/**
+ * @brief The Frost Caves' and the desert's own objects (RfA-83, RfA-84, 2026-10-17): on their floors and caves, a barrel, chest,
+ * shrine, candle stand, corpse or sarcophagus of type @p objectType is drawn as the area's painting - its after picture once @p used
+ * (broken, opened, spent, searched) - standing on @p foot (the tile's middle on screen), outlined when @p hovered, at @p light.
+ * False (nothing drawn) for a type the area has no painting of, anywhere else, or on an indexed target: the vanilla sprite then.
+ */
+bool DrawAreaObject(const Surface &out, int objectType, bool used, Point foot, bool hovered, int light);
+/** @brief The painting DrawAreaObject would draw for @p objectType here (its path), or nullptr; for the tests. */
+const char *AreaObjectPictureForTest(int objectType, bool used);
 
 /**
  * @brief The Mixed look's ground, over the tile Tristram's cels just drew: the painted dirt road on and along the road, its

@@ -1024,6 +1024,16 @@ void DrawObject(const Surface &out, Point tilePosition, Point targetBufferPositi
 		screenPosition -= worldOffset.worldToScreen();
 	}
 
+	// The Frost Caves' and the desert's own barrels, chests, shrines, candle stands and corpses (RfA-83, RfA-84): their painting on
+	// the tile's middle, in place of the sprite (its hover outline drawn round the painting).
+	{
+		Point foot = targetBufferPosition + Displacement { TILE_WIDTH / 2, -TILE_HEIGHT / 2 + 1 };
+		if (objectToDraw.position != tilePosition)
+			foot -= (objectToDraw.position - tilePosition).worldToScreen();
+		if (oracool::DrawAreaObject(out, objectToDraw._otype, objectToDraw._oSelFlag == 0, foot, &objectToDraw == ObjectUnderCursor,
+		        objectToDraw.applyLighting ? LightTableIndex : 0))
+			return;
+	}
 	if (&objectToDraw == ObjectUnderCursor) {
 		ClxDrawOutlineSkipColorZero(out, 194, screenPosition, sprite);
 	}

@@ -21120,6 +21120,20 @@ TEST(OracoolAudit, FrostCavesMonstersWearTheirFrostLook)
 		}
 		EXPECT_LT(((dark >> 16) & 0xFF) + ((dark >> 8) & 0xFF) + (dark & 0xFF), 240U) << "look " << static_cast<int>(look) << ": the dark is lifted";
 	}
+	// Their objects (RfA-83): a barrel frozen until broken, a chest opened, a candle stand always the lit one; the desert's own
+	// (RfA-84) on its floors, its barrels the game's; nothing in the woods.
+	setlevel = true;
+	setlvlnum = SL_ORCL_FROST_1;
+	EXPECT_STREQ(oracool::AreaObjectPictureForTest(OBJ_BARREL, false), "levels\\frost\\objects\\barrel_frozen.png");
+	EXPECT_STREQ(oracool::AreaObjectPictureForTest(OBJ_BARREL, true), "levels\\frost\\objects\\barrel_frozen_broken.png");
+	EXPECT_STREQ(oracool::AreaObjectPictureForTest(OBJ_CHEST2, true), "levels\\frost\\objects\\chest_ice_open.png");
+	EXPECT_STREQ(oracool::AreaObjectPictureForTest(OBJ_CANDLE2, true), "levels\\frost\\objects\\torch_stand.png");
+	EXPECT_EQ(oracool::AreaObjectPictureForTest(OBJ_BCROSS, false), nullptr);
+	setlvlnum = static_cast<_setlevels>(SL_FIRST_DESERT);
+	EXPECT_STREQ(oracool::AreaObjectPictureForTest(OBJ_SARC, true), "levels\\desert\\objects\\sarcophagus_open.png");
+	EXPECT_EQ(oracool::AreaObjectPictureForTest(OBJ_BARREL, false), nullptr);
+	setlvlnum = SL_ORCL_WOODS_2;
+	EXPECT_EQ(oracool::AreaObjectPictureForTest(OBJ_GOATSHRINE, false), nullptr);
 	// Their attacks in ice (2026-10-17): the archers, the spitters, Diablo; nothing changes outside.
 	setlevel = true;
 	setlvlnum = SL_ORCL_FROST_1;
@@ -21208,6 +21222,20 @@ TEST(OracoolPreview, DISABLED_FrostFloors)
 							oracool::DrawWoodsTileSprite(view, tile, at, -1);
 					}
 				}
+			}
+			if (floor == 0 && name == "middle") {
+				// The area objects (RfA-83, RfA-84) at game size on the floor: each before and after, the frost row then the desert's,
+				// the first hovered.
+				constexpr int Types[] = { OBJ_BARREL, OBJ_CHEST1, OBJ_GOATSHRINE, OBJ_CANDLE2, OBJ_DECAP, OBJ_SARC };
+				const _setlevels saved = setlvlnum;
+				for (int row = 0; row < 2; row++) {
+					setlvlnum = row == 0 ? SL_FIRST_FROST : static_cast<_setlevels>(SL_FIRST_DESERT);
+					for (int i = 0; i < 12; i++) {
+						const Point at = screenOf(centre + Displacement { i - 6, -(i - 6) + 4 * row - 2 });
+						oracool::DrawAreaObject(view, Types[i / 2], (i & 1) != 0, at + Displacement { 32, -15 }, i == 0, -1);
+					}
+				}
+				setlvlnum = saved;
 			}
 			PreviewSave(view, (dir / ("frost_" + std::to_string(floor + 1) + "_" + name + ".png")).string().c_str());
 		}
