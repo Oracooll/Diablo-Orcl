@@ -1797,8 +1797,12 @@ void GenerateDesert(uint32_t seed)
 		// Spread out: each at least fourteen tiles from the others (the first preview: three side by side).
 		for (uint32_t salt = 0x72B1U; salt < 0x72B1U + 24U && Craters.size() < 3; salt++) {
 			const std::optional<Point> at = FindDesertSpot(seed, salt);
-			if (!at || std::any_of(Craters.begin(), Craters.end(), [&](Point c) { return c.WalkingDistance(*at) < 14; }))
+			if (!at)
 				continue;
+			if (std::any_of(Craters.begin(), Craters.end(), [&](Point c) { return c.WalkingDistance(*at) < 14; })) {
+				DesertSpots.pop_back(); // not taken: its room stays free for the lone pieces after (audit round 3)
+				continue;
+			}
 			ClearRound(*at, 2);
 			Craters.push_back(*at);
 			const Point corpse = *at + Displacement { 2, -2 };
@@ -3575,11 +3579,16 @@ void PlanWoodsWorld(uint32_t seed, int floor)
 	Put(OBJ_SKPILE, NearOff(Arrival + Displacement { -5, 0 }, 2, 5, Hash(seed, 12, 0), open));
 	// And on the last floor, at the end of the path, the burning cross.
 	// Its burning tile (the one north of it, UpdateBurningCrossDamage) off the road, where the hero walks.
-	if (floor == WoodsFloors - 1)
-		Put(OBJ_BCROSS, NearOff(WayOn + Displacement { 3, 0 }, 2, 6, Hash(seed, 13, 0), [](Point p) {
+	if (floor == WoodsFloors - 1) {
+		const auto crossOk = [](Point p) {
 			const Point burn = p + Displacement { 0, -1 };
 			return WorldOpen(p) && InDungeonBounds(burn) && Ground[burn.x][burn.y] != Path;
-		}), 2);
+		};
+		std::optional<Point> cross = NearOff(WayOn + Displacement { 3, 0 }, 2, 6, Hash(seed, 13, 0), crossOk);
+		if (!cross)
+			cross = NearOff(WayOn + Displacement { 3, 0 }, 2, 12, Hash(seed, 13, 1), crossOk); // the arena took the near room (audit round 3)
+		Put(OBJ_BCROSS, cross, 2);
+	}
 	// Two will-o'-wisps, each over a chest in a pocket of the forest six to ten tiles off the road (the woods' alone).
 	for (const int percent : { 30, 70 }) {
 		if (OwnLook() || WispCount >= static_cast<int>(Wisps.size()))
@@ -4384,9 +4393,21 @@ std::vector<std::pair<Point, int>> FrostCrystalLightSpots()
 	// From an open tile beside each crystal (audit round 2: a crystal stands on a solid tile, and the light pass skips a light in a
 	// wall, so none of them lit anything), one light for crystals standing together, at most twenty a floor (the light pool is the
 	// spells' too).
+	// The big crystals first, then the small, each kind from a spread start (audit round 3: in the floor's row order the twenty went
+	// to the top rows and left the bottom of the cavern dark); a group lit at its biggest crystal's radius.
+	std::vector<Point> order;
+	const size_t n = FrostLights.size();
+	for (int pass = 0; pass < 2; pass++) {
+		const size_t start = n == 0 ? 0 : static_cast<size_t>(Hash(static_cast<uint32_t>(n), 0x11C7U, static_cast<uint32_t>(pass)) % n);
+		for (size_t k = 0; k < n; k++) {
+			const Point at = FrostLights[(start + k * 7919) % n];
+			if ((Tree[at.x][at.y] == CrystalsSmall) == (pass == 1))
+				order.push_back(at);
+		}
+	}
 	std::vector<std::pair<Point, int>> spots;
 	std::vector<Point> lit;
-	for (const Point at : FrostLights) {
+	for (const Point at : order) {
 		if (lit.size() >= 20)
 			break;
 		if (std::any_of(lit.begin(), lit.end(), [&](Point l) { return l.WalkingDistance(at) < 4; }))
