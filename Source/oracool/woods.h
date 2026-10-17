@@ -180,7 +180,7 @@ enum class FrostLook : uint8_t {
 /**
  * @brief A monster's ranged attack @p missile as the Frost Caves have it (the Designer's Frost Caves roster, "we will make them shoot ice
  * shards, or diablo can produce ice spikes instead of appocalypse flames. acid spiters can spit ice shards"): on a Frost Caves floor
- * or frozen river, its ice version - arrows, firebolts and flares an ice bolt; acid, blood stars, fireballs and magma ice blast shards;
+ * or frozen river, its ice version - firebolts and flares an ice bolt (arrows stay arrows); acid, blood stars, fireballs and magma ice blast shards;
  * Apocalypse and lightning glacial spikes. @p missile itself anywhere else, and for anything with no ice version.
  */
 int FrostMissileFor(int missile);
@@ -315,6 +315,8 @@ constexpr int CaptiveMark = 0x0CA97;
 constexpr int CaptiveObjectType = -2;
 /** @brief An object of @p type whose _oVar3 is @p var3 is the Still River's captive, here. */
 bool IsStillRiverCaptive(int type, int var3);
+/** @brief DrawAreaObject has a painting for @p objectType here (so the sprite is not drawn). */
+bool DrawsAreaObject(int objectType);
 /** @brief The painting DrawAreaObject would draw for @p objectType here (its path), or nullptr; for the tests. */
 const char *AreaObjectPictureForTest(int objectType, bool used);
 

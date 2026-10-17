@@ -572,7 +572,11 @@ void DrawMonster(const Surface &out, Point tilePosition, Point targetBufferPosit
 	}
 	// The Frost Caves (2026-10-17): every monster there in its kind's frost look (the Designer's Frost Caves roster), lit as it
 	// stands - a unique's own colours under it, unlit as uniques glow. Ice, stone, infravision and the chill win, as above.
-	if (!out.isIndexed() && (trn == nullptr || trn == monster.uniqueMonsterTRN.get())) {
+	// The hero's side keeps its own looks (audit, 2026-10-17: a converted monster, a golem, the decoy, a companion all turned frost
+	// grey with the enemy, and a mended minion lost its glow).
+	const bool heroSide = monster.isPlayerMinion() || oracool::IsCompanion(monster) || oracool::IsMinion(monster) || oracool::IsDecoyBody(monster)
+	    || oracool::IsMonsterConverted(monster) || oracool::MinionMendGlow(monster) > 0;
+	if (!out.isIndexed() && !heroSide && (trn == nullptr || trn == monster.uniqueMonsterTRN.get())) {
 		if (const oracool::FrostLook look = oracool::FrostLookFor(monster.type().type); look != oracool::FrostLook::None) {
 			const uint32_t *lit = oracool::LitPaletteTable(trn != nullptr && monster.isUnique() ? 0 : LightTableIndex);
 			std::array<uint32_t, 256> own;
@@ -1030,6 +1034,9 @@ void DrawObject(const Surface &out, Point tilePosition, Point targetBufferPositi
 		Point foot = targetBufferPosition + Displacement { TILE_WIDTH / 2, -TILE_HEIGHT / 2 + 1 };
 		if (objectToDraw.position != tilePosition)
 			foot -= (objectToDraw.position - tilePosition).worldToScreen();
+		// A painting is drawn once, from the object's own tile (its soft edges blended twice from both of a sarcophagus's, audit).
+		if (objectToDraw.position != tilePosition && oracool::DrawsAreaObject(objectToDraw._otype))
+			return;
 		const bool used = objectToDraw._otype == OBJ_WAYPOINT ? objectToDraw._oAnimFrame == 2 : objectToDraw._oSelFlag == 0; // a waypoint: lit
 		const int type = oracool::IsStillRiverCaptive(objectToDraw._otype, objectToDraw._oVar3) ? oracool::CaptiveObjectType : objectToDraw._otype;
 		if (oracool::DrawAreaObject(out, type, used, foot, &objectToDraw == ObjectUnderCursor,

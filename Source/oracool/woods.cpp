@@ -463,6 +463,16 @@ std::vector<Point> Craters;
  * craters are, with a light of its own over it - the game draws the light; the picture is only the snow.
  */
 std::vector<Point> LightShafts;
+/**
+ * @brief The Frost Caves' build masks (audit, 2026-10-17): the open floor the trodden way reaches before the sights go in (a sight
+ * set in a cavern the way never crossed was sealed into the rock with it), the wide props' invisible footprints (the wall pass took
+ * them for rock facing open ground and stood wall pieces round every one), and the tiles the wall pass made wall (the rock's depth and
+ * the tomb door told wall from clutter by a range of kinds that missed one wall kind and took in a clutter one).
+ */
+bool FrostReach[MAXDUNX][MAXDUNY];
+bool FrostReachValid = false;
+bool FrostFootprint[MAXDUNX][MAXDUNY];
+bool FrostWallTile[MAXDUNX][MAXDUNY];
 /** @brief The nomad camps' lanterns (RfA-73 paints them cold): lit by night, a small flame and a night lamp. */
 std::vector<Point> CampLanterns;
 
@@ -1193,8 +1203,10 @@ void BlockFootprint(Point at)
 {
 	for (const Displacement d : { Displacement { 1, -1 }, Displacement { -1, 1 } }) {
 		const Point p = at + d;
-		if (InDungeonBounds(p) && Tree[p.x][p.y] == NoTree && Ground[p.x][p.y] != Path)
+		if (InDungeonBounds(p) && Tree[p.x][p.y] == NoTree && Ground[p.x][p.y] != Path) {
 			Tree[p.x][p.y] = Blocker;
+			FrostFootprint[p.x][p.y] = true;
+		}
 	}
 }
 
@@ -1915,6 +1927,8 @@ bool FrostSpotFits(Point p, int clear, const std::vector<Point> &taken, int apar
 	for (const Point t : taken)
 		if (p.WalkingDistance(t) < apart)
 			return false;
+	if (FrostReachValid && !FrostReach[p.x][p.y])
+		return false; // a cavern the trodden way never crosses: the seal fills it
 	for (int dy = -clear; dy <= clear; dy++)
 		for (int dx = -clear; dx <= clear; dx++) {
 			const Point q = p + Displacement { dx, dy };
@@ -1953,6 +1967,9 @@ std::optional<Point> FindFrostSpot(uint32_t seed, uint32_t salt, int clear, cons
 void GenerateFrost(uint32_t seed)
 {
 	const int floor = GenFloor;
+	FrostReachValid = false;
+	std::memset(FrostFootprint, 0, sizeof(FrostFootprint));
+	std::memset(FrostWallTile, 0, sizeof(FrostWallTile));
 	std::memset(Ground, Grass, sizeof(Ground));
 	std::memset(Tree, NoTree, sizeof(Tree));
 	std::memset(Scatter, 0, sizeof(Scatter));
@@ -2091,6 +2108,25 @@ void GenerateFrost(uint32_t seed)
 		LayPath(MouthEntrance, nearest, 1, seed ^ 0x7A1CU);
 	}
 
+	// What the trodden way reaches now, through open floor: every sight below must stand in it.
+	{
+		std::memset(FrostReach, 0, sizeof(FrostReach));
+		std::vector<Point> queue { Arrival };
+		if (Inside(Arrival))
+			FrostReach[Arrival.x][Arrival.y] = true;
+		for (size_t head = 0; head < queue.size(); head++) {
+			const Point at = queue[head];
+			for (const Displacement d : { Displacement { 1, 0 }, Displacement { -1, 0 }, Displacement { 0, 1 }, Displacement { 0, -1 } }) {
+				const Point q = at + d;
+				if (!Inside(q) || FrostReach[q.x][q.y] || Tree[q.x][q.y] != NoTree)
+					continue;
+				FrostReach[q.x][q.y] = true;
+				queue.push_back(q);
+			}
+		}
+		FrostReachValid = true;
+	}
+
 	// The floor's sights, each in an open place of its own.
 	const auto place = [&](uint32_t salt, int clear, std::initializer_list<std::pair<Displacement, TreeKind>> pieces) {
 		const std::optional<Point> at = FindFrostSpot(seed, salt, clear, taken, 14);
@@ -2190,10 +2226,9 @@ void GenerateFrost(uint32_t seed)
 			stand({ -5, -2 }, BrazierFrozen);
 			stand({ -5, 2 }, BrazierFrozen);
 			constexpr Displacement Ring[6] = { { 3, 2 }, { 0, 3 }, { -3, 2 }, { -3, -2 }, { 0, -3 }, { 3, -2 } };
-			for (int k = 0; k < 6; k++) {
-				const uint32_t h = Hash(seed, 0xF3C3U, static_cast<uint32_t>(k));
-				stand(Ring[k], k == static_cast<int>(h % 6U) ? RingStoneC : (k & 1) != 0 ? RingStoneB : RingStoneA);
-			}
+			const int cracked = static_cast<int>(Hash(seed, 0xF3C3U, 0U) % 6U); // the one cracked stone, rolled once (audit)
+			for (int k = 0; k < 6; k++)
+				stand(Ring[k], k == cracked ? RingStoneC : (k & 1) != 0 ? RingStoneB : RingStoneA);
 			for (int k = 0; k < 3; k++) {
 				const int along = -4 + 4 * k;
 				const bool broken = Unit(Hash(seed, 0xF3C2U, static_cast<uint32_t>(k))) < 0.34F;
@@ -2220,6 +2255,8 @@ void GenerateFrost(uint32_t seed)
 			const Point p { x, y };
 			if (p.WalkingDistance(Arrival) < 6 || p.WalkingDistance(WayOn) < 6 || (MouthOnFloor && p.WalkingDistance(MouthEntrance) < 5))
 				continue;
+			if (ArenaCentre != Point {} && p.WalkingDistance(ArenaCentre) <= 7)
+				continue; // the throne hall's floor stays clear (audit)
 			const uint32_t h = Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), seed ^ 0xC1A7U);
 			if (Unit(h) >= 0.014F)
 				continue;
@@ -2254,7 +2291,7 @@ void GenerateFrost(uint32_t seed)
 	// the rest of the rock stays unseen.
 	for (int y = Lo; y <= Hi; y++)
 		for (int x = Lo; x <= Hi; x++) {
-			if (Tree[x][y] != Blocker)
+			if (Tree[x][y] != Blocker || FrostFootprint[x][y])
 				continue;
 			bool facesOpen = false;
 			for (int dy = -1; dy <= 1 && !facesOpen; dy++)
@@ -2265,6 +2302,7 @@ void GenerateFrost(uint32_t seed)
 			const uint32_t h = Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), seed ^ 0x7A11U);
 			Ground[x][y] = Forest;
 			Tree[x][y] = PickFrostWall(h >> 4);
+			FrostWallTile[x][y] = true;
 			// The Deep's walls hold its dead (RfA-81b): one face in six.
 			if (floor == 2 && Unit(Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), seed ^ 0xFACEU)) < 0.17F && (Tree[x][y] == FrostWallA || Tree[x][y] == FrostWallB))
 				Tree[x][y] = WallFaces;
@@ -2279,8 +2317,8 @@ void GenerateFrost(uint32_t seed)
 			const int x = Lo + at % side, y = Lo + at / side;
 			if (x <= Lo + 2 || y <= Lo + 2 || x >= Hi - 2 || y >= Hi - 2)
 				continue;
-			const auto wall = [](uint8_t t) { return t >= FrostWallA && t <= IceStalagmite; };
-			if (!wall(Tree[x][y]) || Tree[x + 1][y + 1] != NoTree || Tree[x + 2][y + 2] != NoTree || !wall(Tree[x + 1][y - 1]) || !wall(Tree[x - 1][y + 1]))
+			const auto wall = [](int wx, int wy) { return FrostWallTile[wx][wy]; };
+			if (!wall(x, y) || Tree[x + 1][y + 1] != NoTree || Tree[x + 2][y + 2] != NoTree || !wall(x + 1, y - 1) || !wall(x - 1, y + 1))
 				continue;
 			Tree[x][y] = TombDoor;
 			break;
@@ -2291,7 +2329,7 @@ void GenerateFrost(uint32_t seed)
 	{
 		const auto rock = [](int x, int y) {
 			const uint8_t t = Tree[x][y];
-			return t == Blocker || (t >= FrostWallA && t <= IceStalagmite) || t == WallFaces || t == TombDoor;
+			return (t == Blocker && !FrostFootprint[x][y]) || FrostWallTile[x][y] || t == TombDoor;
 		};
 		std::vector<Point> frontier;
 		for (int y = 0; y < MAXDUNY; y++)
@@ -2322,8 +2360,11 @@ void GenerateFrost(uint32_t seed)
 	// The wall's second row: two tiles in five behind its face stand too, so the wall has mass.
 	for (int y = Lo; y <= Hi; y++)
 		for (int x = Lo; x <= Hi; x++)
-			if (Tree[x][y] == Blocker && FrostRockDepth[x][y] == 2 && Unit(Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), seed ^ 0x7A12U)) < 0.4F)
+			if (Tree[x][y] == Blocker && !FrostFootprint[x][y] && FrostRockDepth[x][y] == 2
+			    && Unit(Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), seed ^ 0x7A12U)) < 0.4F) {
 				Tree[x][y] = Unit(Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), seed ^ 0x7A13U)) < 0.5F ? FrostWallA : FrostWallB;
+				FrostWallTile[x][y] = true;
+			}
 
 	// The way on (RfA-79): the passage into the rock at the trodden way's far end, just past its last tile, on every floor but the
 	// last (its throne hall ends the caves).
@@ -3355,6 +3396,11 @@ bool WorldOpen(Point p)
 		return false;
 	if (HasFairyRing && p.WalkingDistance(GladeCentre) < 5)
 		return false;
+	// Nor on a light shaft's snow, nor in the Throne of Winter's hall (audit, 2026-10-17).
+	if (std::any_of(LightShafts.begin(), LightShafts.end(), [&](Point c) { return c.WalkingDistance(p) <= 2; }))
+		return false;
+	if (Frost && ArenaCentre != Point {} && p.WalkingDistance(ArenaCentre) <= 6)
+		return false;
 	for (int dy = -1; dy <= 1; dy++) {
 		for (int dx = -1; dx <= 1; dx++) {
 			const Point q = p + Displacement { dx, dy };
@@ -4225,8 +4271,9 @@ int FrostMissileFor(int missile)
 		return missile;
 	// The cold projectiles that roll a monster's own damage when a monster fires them (AddFirebolt, RollColdDamage); the frost arrow
 	// does not (ProcessRogueArrow deals 1 from a monster), so an archer's arrow becomes an ice bolt.
+	// Arrows stay arrows (audit, 2026-10-17): as Ice Bolts every archer's hit chilled the hero to half speed, cold resistance turned
+	// off his block outside Hellfire, and the Rogue's arrow passives stopped working against them.
 	switch (static_cast<MissileID>(missile)) {
-	case MissileID::Arrow:
 	case MissileID::Firebolt:
 	case MissileID::OrangeFlare:
 	case MissileID::YellowFlare:
@@ -4656,7 +4703,11 @@ namespace {
 void ScaleKindToRung(Monster &monster, int rung)
 {
 	const MonsterData &data = monster.data();
-	const int gap = rung > LadderMax(data) ? rung - LadderMax(data) : rung < LadderMin(data) ? rung - LadderMin(data) : 0;
+	// A kind's own floors are on the ladder's sixteen rungs: Na-Krul's 31 sits at 23 there, so every rung would have halved him
+	// (audit, 2026-10-17).
+	const int lo = std::min(LadderMin(data), RungsPerDifficulty);
+	const int hi = std::min(LadderMax(data), RungsPerDifficulty);
+	const int gap = rung > hi ? rung - hi : rung < lo ? rung - lo : 0;
 	if (gap == 0)
 		return;
 	const int pct = std::max(50, FloorStepPercent(gap));
@@ -4686,6 +4737,13 @@ void ScaleHellfireFloorMonsters()
 
 void ScaleWoodsMonster(Monster &monster)
 {
+	// A Hive or Crypt floor's raised dead, clones and spawn come to its rung as its own monsters did (audit, 2026-10-17: only the
+	// floor's first population was scaled).
+	if (!setlevel && currlevel >= 17 && currlevel <= 24) {
+		if (const int rung = HellfireFloorRung(currlevel); rung != 0 && !monster.isPlayerMinion() && monster.type().type != MT_GOLEM)
+			ScaleKindToRung(monster, rung);
+		return;
+	}
 	if (!setlevel || !IsOrclActLevel(setlvlnum) || monster.isPlayerMinion() || monster.type().type == MT_GOLEM)
 		return;
 	const int floor = WoodsBandFloor();
@@ -5703,6 +5761,9 @@ const AreaObjectFile *AreaObjectFor(OrclArea area, int type)
 	case OBJ_CHEST1:
 	case OBJ_CHEST2:
 	case OBJ_CHEST3:
+	case OBJ_TCHEST1: // a trapped one too, or the vanilla chest among the ice ones gives the trap away (audit)
+	case OBJ_TCHEST2:
+	case OBJ_TCHEST3:
 		return area == OrclArea::Frost ? &FrostChest : nullptr;
 	case OBJ_GOATSHRINE:
 	case OBJ_CAULDRON:
@@ -5748,6 +5809,11 @@ const char *AreaObjectPath(int type, bool used)
 
 } // namespace
 
+bool DrawsAreaObject(int objectType)
+{
+	return AreaObjectPath(objectType, false) != nullptr;
+}
+
 bool IsStillRiverCaptive(int type, int var3)
 {
 	return setlevel && setlvlnum == SL_ORCL_FROST_RIVER_4 && type == OBJ_CHEST3 && var3 == CaptiveMark;
@@ -5770,7 +5836,7 @@ bool DrawAreaObject(const Surface &out, int objectType, bool used, Point foot, b
 		return false;
 	const bool after = used && objectType != OBJ_CANDLE2;
 	// Loaded once each, kept for the game (a handful of small pictures); a painting that fails to load leaves the vanilla sprite.
-	static std::unordered_map<std::string, Picture> pictures;
+	static std::unordered_map<const char *, Picture> pictures; // the paths are constants: no string built a frame (audit)
 	const char *path = after ? file->after : file->before;
 	auto [it, added] = pictures.try_emplace(path);
 	if (added) {

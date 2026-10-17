@@ -65,6 +65,9 @@ struct CavesGame {
 };
 CavesGame Game;
 
+/** @brief Each cave's seed has passed the landing walk this game (BuildWoodsCaveLevel): its later builds keep it. */
+std::array<bool, Caves.size()> GameSettled {};
+
 /** @brief The next cave floor built is entered from the one below: the hero stands by its down stairs. */
 bool EnterFromBelow = false;
 
@@ -85,6 +88,7 @@ constexpr uint8_t GenerationFloor = 10;
 void ResetWoodsCavesForNewGame()
 {
 	Game = {};
+	GameSettled = {};
 	EnterFromBelow = false;
 }
 
@@ -118,14 +122,30 @@ int WalkFromLanding(std::vector<int> &steps)
 {
 	steps.assign(static_cast<size_t>(MAXDUNX) * MAXDUNY, -1);
 	std::vector<Point> queue;
-	for (int dy = -3; dy <= 3; dy++)
-		for (int dx = -3; dx <= 3; dx++) {
-			const Point q = ViewPosition + Displacement { dx, dy };
-			if (InDungeonBounds(q) && !IsTileSolid(q)) {
-				steps[static_cast<size_t>(q.y) * MAXDUNX + q.x] = 0;
-				queue.push_back(q);
+	// The landing's own open tiles: those joined to the hero's tile inside the 7 x 7 round it (all of the 7 x 7 reached across a
+	// wall two tiles thick into a pocket behind it, audit 2026-10-17); his tile itself may be the stairs'.
+	{
+		std::vector<Point> near { ViewPosition };
+		std::array<bool, 49> seen {};
+		seen[24] = true;
+		for (size_t head = 0; head < near.size(); head++) {
+			const Point at = near[head];
+			if (InDungeonBounds(at) && !IsTileSolid(at)) {
+				steps[static_cast<size_t>(at.y) * MAXDUNX + at.x] = 0;
+				queue.push_back(at);
+			} else if (at != ViewPosition) {
+				continue;
+			}
+			for (const Displacement d : { Displacement { 1, 0 }, Displacement { -1, 0 }, Displacement { 0, 1 }, Displacement { 0, -1 } }) {
+				const Point q = at + d;
+				const int ix = q.x - ViewPosition.x + 3, iy = q.y - ViewPosition.y + 3;
+				if (ix < 0 || iy < 0 || ix > 6 || iy > 6 || seen[static_cast<size_t>(iy * 7 + ix)])
+					continue;
+				seen[static_cast<size_t>(iy * 7 + ix)] = true;
+				near.push_back(q);
 			}
 		}
+	}
 	for (size_t head = 0; head < queue.size(); head++) {
 		const Point at = queue[head];
 		for (const Displacement d : { Displacement { 1, 0 }, Displacement { -1, 0 }, Displacement { 0, 1 }, Displacement { 0, -1 },
@@ -184,14 +204,30 @@ void BuildWoodsCaveLevel(bool fresh)
 	// their floor, some only the stairs' corner): the Caves generator checks its floor joins up before laying the lava rivers and
 	// the fences, and one-tile lines of them can then wall the stairs' corner off from the rest. Such a floor is built again from
 	// the next seed, kept as the floor's own, so a revisit builds the floor that was played.
+	// The first build only (audit, 2026-10-17): a revisit restores the level saved on the floor that was played, so it must build
+	// that floor again, whatever its walk says from the other stairs. If no try reaches four fifths, the best one is kept.
 	std::vector<int> steps;
 	RebuildsForTest = 0;
 	FirstReachPercent = OpenTiles() > 0 ? WalkFromLanding(steps) * 100 / OpenTiles() : 0;
-	for (int tries = 0; tries < 12 && WalkFromLanding(steps) * 10 < OpenTiles() * 8; tries++) {
-		Game.seed[index] = (Game.seed[index] * 2654435761U + 0x9E3779B9U) | 1U;
-		CreateDungeon(Game.seed[index], entry);
-		RebuildsForTest++;
+	if (fresh && !GameSettled[index]) {
+		uint32_t seed = Game.seed[index];
+		uint32_t bestSeed = seed;
+		int bestShare = FirstReachPercent;
+		for (int tries = 0; tries < 12 && bestShare < 80; tries++) {
+			seed = (seed * 2654435761U + 0x9E3779B9U) | 1U;
+			CreateDungeon(seed, entry);
+			RebuildsForTest++;
+			const int share = OpenTiles() > 0 ? WalkFromLanding(steps) * 100 / OpenTiles() : 0;
+			if (share > bestShare) {
+				bestShare = share;
+				bestSeed = seed;
+			}
+		}
+		if (seed != bestSeed)
+			CreateDungeon(bestSeed, entry);
+		Game.seed[index] = bestSeed;
 	}
+	GameSettled[index] = true;
 	GeneratingCaveWithoutWayDown = false;
 	EnterFromBelow = false;
 	LoadRndLvlPal(leveltype);

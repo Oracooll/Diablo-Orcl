@@ -93,3 +93,51 @@ User, 2026-10-17: "start the frost caves engine work while waiting". Plan: `.Pro
 - **The roster (`FrostKinds`):** the woods' kinds, all in Rime, until the Designer's Frost Caves roster is saved (none saved yet). A kind off the roster, such as a boss, wears Rime too.
 - **RfA-83:** the interactive objects are approved and in the package (`levels/frost/objects/`); swapping them in for the vanilla objects is a later engine step.
 - **Tests:** `FrostCavesMonstersWearTheirFrostLook` checks the look is used in the Frost Caves alone, that each look turns a warm colour cold (Frostbite mutes it) and that dark colours stay dark. Full suite 1073 of 1073.
+
+## v1.13.075: the Frost Caves' monsters shoot ice
+- **The swap (`FrostMissileFor`, woods.cpp):** on a Frost Caves floor or frozen river, a ranged monster's missile becomes its ice version; anywhere else nothing changes.
+  - Arrows, firebolts and the flares: Ice Bolt.
+  - Acid, blood stars, fireballs and magma balls: Ice Blast.
+  - Diablo's Apocalypse and the storm lightning: Glacial Spike.
+- **Where:** `GetMonsterMissile` wraps `GetMissileType` for `AiRanged` and `AiRangedAvoidance`; the skeleton archers' own `StartRangedAttack(Arrow)` goes through it too.
+- **Why these three:** they roll the monster's own damage when a monster fires them. The Frost Arrow does not (a monster's deals 1), so the archers fire Ice Bolts.
+- **Tests:** the swap in the Frost Caves, a charge staying a charge, and the woods untouched. Full suite 1073 of 1073.
+
+## v1.13.076: the area objects (RfA-83, RfA-84)
+- **The paintings (`DrawAreaObject`, from scrollrt's `DrawObject`):** on the Frost Caves' and the desert's floors and caves, the vanilla object's sprite gives way to the area's painting, at half its painted size, standing on the tile's middle. The after picture shows once the object is used (`_oSelFlag == 0`): broken, opened, spent, searched.
+  - **Frost:** barrels and urns (frozen barrel), chests (ice chest), shrines (ice shrine), candle stands (torch stand), corpses and sarcophagi (corpse in the snow).
+  - **Desert:** sarcophagi, shrines (sun shrine), candle stands (bronze brazier), corpses (wrapped corpse on its bier). Its barrels and chests keep the game's own.
+- **The candle stand** always shows its lit picture: the game's light is on it.
+- **Hover:** the game's outline colour (palette 194) is drawn round the painting.
+- **Verified** in a rendered row of every object, before and after, on the frost floor.
+
+## v1.13.077: the waypoint pads
+- The frost pad (RfA-79) and the sun pad (RfA-84) replace the waypoint on those floors, at the game pad's width (75 %).
+- A lit waypoint (`_oAnimFrame == 2`) gets a soft additive glow over the pad, ice-blue or gold; the paintings are unlit by brief.
+
+## v1.13.078: the Still River's frozen captive (RfA-85, 85b)
+- **The object:** a large chest of three real items, untrapped, marked by `_oVar3 = CaptiveMark`, placed on the Still River's first build at the longest walk from the landing. Named "Frozen Captive"; drawn as the robed figure in ice, shattered once opened. No quest (the user: "My act doesn't add Quests for now").
+- **The art:** RfA-85's broken state had three dark shapes in its base that read as letters ("ROX"); sent back as RfA-85b. Its redo still had see-through gaps in that patch, which I filled from the ice round them.
+
+## v1.13.079: the way on
+- RfA-79's `passage_on` stands on the rock tile just past the trodden way's far end (`Tree[Lo - 1][WayOn.y]`) on floors 1-3; the fourth ends in the throne hall.
+
+## v1.13.080: the cold
+- **Sifting snow:** 90 slow pale flakes on every Frost Caves floor and river at every hour (`ApplyAfterWorld`); the sky's weather never reaches underground.
+- **Mist:** the ground mist lies cold blue on the floors all day (strength 0.7), and the rivers' Caves mist turns blue.
+- **Breath:** every two or three seconds a pale puff at the hero's mouth, drifting the way he faces (`TickFrostBreath`, dust particles).
+- **The river shimmer** needed no code: the frost tint makes the river's cycling colours pale blue, so post_fx classes it as water and gives it the water light, not the lava's heat haze or glow.
+
+## v1.13.081: the menu clip, the Hellfire act, the cave landings
+- **The idle menu** plays Diablo's or Hellfire's intro at random, each only if the archives hold it, on its own roll (no game seed moves).
+- **The Hive and the Crypt scale with the hero** (the user, 2026-10-17): each floor 17-24 fixes its rung the first time it is entered in a game - a third of the hero's level (at least 1), plus one per floor down, capped at 16 (`FixHellfireFloorRung`, called before anything is placed). `AreaLevel` uses it for loot; `ScaleHellfireFloorMonsters` rescales the floor's monsters to it after the theme rooms. This replaces the 2026-09-12 decision to keep them weaker than Hell.
+- **Audit - walled-off cave landings:** while testing the captive, its walk from the landing reached only 24-155 tiles of about 2,400 in some builds. Measured over 180 builds of six caves: a third of first builds reached under four fifths of their floor. The Caves generator checks its floor joins up before it lays the lava rivers and fences, whose one-tile lines can then wall the stairs' corner off. `BuildWoodsCaveLevel` now walks the floor from the landing (`WalkFromLanding`: open tiles, diagonals where one side is open, ignoring objects) and builds again from the next seed until 80 % is reachable, up to 12 times; the accepted seed is kept, so a revisit rebuilds the same floor. Whether the hero was really boxed in during play was not confirmed; the rebuild costs nothing when he was not.
+- **Tests:** the rung rule; every Orcl cave built 30 times, each landing reaching four fifths of its floor. Full suite 1073 of 1073.
+
+## v1.13.082: the light shafts
+- Two per Frost Caves floor, on open floor chosen after the unreachable pockets are sealed (placed before the seal, some first landed inside a pocket), each with a light of radius 6. The snow heap (`light_shaft.png`, RfA-79b) is drawn there as the desert's craters are once it is delivered; until then the shafts are light alone.
+- **Tests:** two per floor, each walkable. Full suite 1073 of 1073.
+
+## Designer: the Frost tab (Version 25)
+- The Orcl Act Level Designer has a Frost tab beside Woods and Desert: 8 grounds, 15 walls and pillars, 32 mid props, 12 scatter details, at the game's own scales and foot points, on a dark cave wash. It saves under `settings/current` -> `frost` {ground, objects, placed, effects}, beside the roster's `frost.mobs`.
+- No Frost roster has been saved yet, so every kind keeps the Rime look and the default ice attacks.

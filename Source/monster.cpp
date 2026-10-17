@@ -3070,7 +3070,7 @@ void SkeletonBowAi(Monster &monster)
 	if (!walking) {
 		if (GenerateRnd(100) < 2 * monster.intelligence + 3) {
 			if (LineClearMissile(monster.position.tile, monster.enemyPosition))
-				StartRangedAttack(monster, static_cast<MissileID>(oracool::FrostMissileFor(static_cast<int>(MissileID::Arrow))), 4);
+				StartRangedAttack(monster, MissileID::Arrow, 4);
 		}
 	}
 

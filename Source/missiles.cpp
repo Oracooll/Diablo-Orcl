@@ -4,6 +4,7 @@
  * Implementation of missile functionality.
  */
 #include "missiles.h"
+#include "oracool/woods.h" // ScaleWoodsMonster - a Hork Demon's spawn at the floor's rung
 #include "objects.h" // TrapFloor
 #include "qol/stash.h" // AutoPlaceItemInStash - a stolen potion's last resort
 #include "oracool/sat_math.h" // AddPercentSat - the damage passives past int (round 27 audit)
@@ -2632,7 +2633,9 @@ namespace {
 void RollColdDamage(Missile &missile, SpellID spell)
 {
 	if (missile.sourceType() != MissileSource::Player) {
-		missile._midam = ProjectileMonsterDamage(missile);
+		// A damage the caster gave (a boss's special attack) stands; else the monster's own (audit, 2026-10-17).
+		if (missile._midam == 0)
+			missile._midam = ProjectileMonsterDamage(missile);
 		return;
 	}
 	int minDamage;
@@ -2688,6 +2691,8 @@ void AddGlacialShatter(Missile &missile, AddMissileParameter &parameter)
 {
 	AddMissileExplosion(missile, parameter);
 	ScaleMissile(missile, 50); // two steps down (dev note, 2026-09-30)
+	if (missile._micaster == TARGET_PLAYERS)
+		return; // a monster's spike (the Frost Caves, 2026-10-17) chills no monster round where it broke (audit)
 	const Point centre = missile.position.tile;
 	for (int dy = -1; dy <= 1; dy++) {
 		for (int dx = -1; dx <= 1; dx++) {
@@ -5659,6 +5664,7 @@ void ProcessHorkSpawn(Missile &missile)
 			auto facing = static_cast<Direction>(missile.var1);
 			Monster *monster = AddMonster(*spawnPosition, facing, 1, true);
 			if (monster != nullptr) {
+				oracool::ScaleWoodsMonster(*monster); // at the floor's rung, as its parent (audit, 2026-10-17)
 				M_StartStand(*monster, facing);
 			}
 		}

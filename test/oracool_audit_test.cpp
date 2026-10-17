@@ -20740,7 +20740,7 @@ TEST(OracoolAudit, WoodsCaveMouthIsReachableAndCaveFloorsHaveTheirStairs)
 			setlvlnum = river;
 			for (int build = 0; build < 30; build++) {
 				oracool::ResetWoodsCavesForNewGame();
-				oracool::BuildWoodsCaveLevel(false);
+				oracool::BuildWoodsCaveLevel(true); // a first build: the only one that rebuilds a walled-off landing
 				EXPECT_GE(oracool::CaveLandingReachPercentForTest(), 80) << "set level " << river << ", build " << build << ": the landing is walled off";
 				rebuilt += oracool::CaveRebuildsForTest();
 			}
@@ -21182,6 +21182,7 @@ TEST(OracoolAudit, FrostCavesMonstersWearTheirFrostLook)
 	EXPECT_STREQ(oracool::AreaObjectPictureForTest(OBJ_CHEST2, true), "levels\\frost\\objects\\chest_ice_open.png");
 	EXPECT_STREQ(oracool::AreaObjectPictureForTest(OBJ_CANDLE2, true), "levels\\frost\\objects\\torch_stand.png");
 	EXPECT_EQ(oracool::AreaObjectPictureForTest(OBJ_BCROSS, false), nullptr);
+	EXPECT_STREQ(oracool::AreaObjectPictureForTest(OBJ_TCHEST2, false), "levels\\frost\\objects\\chest_ice.png") << "a trapped chest looks like the rest";
 	EXPECT_STREQ(oracool::AreaObjectPictureForTest(OBJ_WAYPOINT, true), "levels\\frost\\waypoint_frost.png");
 	setlvlnum = static_cast<_setlevels>(SL_FIRST_DESERT);
 	EXPECT_STREQ(oracool::AreaObjectPictureForTest(OBJ_SARC, true), "levels\\desert\\objects\\sarcophagus_open.png");
@@ -21191,7 +21192,8 @@ TEST(OracoolAudit, FrostCavesMonstersWearTheirFrostLook)
 	// Their attacks in ice (2026-10-17): the archers, the spitters, Diablo; nothing changes outside.
 	setlevel = true;
 	setlvlnum = SL_ORCL_FROST_1;
-	EXPECT_EQ(oracool::FrostMissileFor(static_cast<int>(MissileID::Arrow)), static_cast<int>(MissileID::IceBolt));
+	EXPECT_EQ(oracool::FrostMissileFor(static_cast<int>(MissileID::Arrow)), static_cast<int>(MissileID::Arrow)) << "arrows stay arrows (audit)";
+	EXPECT_EQ(oracool::FrostMissileFor(static_cast<int>(MissileID::Firebolt)), static_cast<int>(MissileID::IceBolt));
 	EXPECT_EQ(oracool::FrostMissileFor(static_cast<int>(MissileID::Acid)), static_cast<int>(MissileID::IceBlast));
 	EXPECT_EQ(oracool::FrostMissileFor(static_cast<int>(MissileID::DiabloApocalypse)), static_cast<int>(MissileID::GlacialSpike));
 	EXPECT_EQ(oracool::FrostMissileFor(static_cast<int>(MissileID::Rhino)), static_cast<int>(MissileID::Rhino)) << "a charge stays a charge";
