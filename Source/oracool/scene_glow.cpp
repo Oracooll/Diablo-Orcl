@@ -660,6 +660,47 @@ uint32_t GlintColour(const Item &item)
 	return 0;
 }
 
+/**
+ * @brief The hero's breath in the Frost Caves (2026-10-17, the Frost Asset Catalogue's game-drawn cold): every two or three seconds
+ * a small pale puff at his mouth, drifting the way he faces and spreading as it fades.
+ */
+float BreathNext = -1;
+
+void TickFrostBreath()
+{
+	if (MyPlayer == nullptr || !MyPlayer->plractive || MyPlayer->_pmode == PM_DEATH || !InFrostCaves() || !*sgOptions.Oracool.weather)
+		return;
+	const float now = Now();
+	if (BreathNext >= 0 && now < BreathNext && BreathNext - now < 10.0F)
+		return;
+	BreathNext = now + 2.2F + Rand() * 1.2F;
+	float x, y;
+	HeroWorld(*MyPlayer, x, y);
+	// His facing on the screen: a step's world change, as the floor draws it (32 across and 16 down a tile).
+	const Displacement step(MyPlayer->_pdir);
+	float fx = static_cast<float>(step.deltaX - step.deltaY);
+	float fy = static_cast<float>(step.deltaX + step.deltaY) * 0.5F;
+	const float len = std::sqrt(fx * fx + fy * fy);
+	if (len > 0) {
+		fx /= len;
+		fy /= len;
+	}
+	for (int i = 0; i < 6; i++) {
+		Particle p {};
+		p.x = x + fx * 7.0F + (Rand() - 0.5F) * 3.0F;
+		p.y = y + fy * 7.0F + (Rand() - 0.5F) * 2.0F;
+		p.z = 54.0F + Rand() * 5.0F;
+		p.vx = fx * (14.0F + Rand() * 10.0F) + (Rand() - 0.5F) * 6.0F;
+		p.vy = fy * (14.0F + Rand() * 10.0F) + (Rand() - 0.5F) * 3.0F;
+		p.vz = 10.0F + Rand() * 8.0F; // a little up: warm breath rising
+		p.born = now;
+		p.life = 0.9F + Rand() * 0.5F;
+		p.rgb = SG_PACK(226, 234, 244);
+		p.kind = Kind::Dust;
+		Emit(p);
+	}
+}
+
 void TickFloorItems()
 {
 	SeenNow.fill(false);
@@ -2058,6 +2099,7 @@ void TickSceneGlow(const Surface &visible, Point firstTile, Point firstTileBuffe
 		DateNewCorpses();
 	SkillFxs.erase(std::remove_if(SkillFxs.begin(), SkillFxs.end(), [now](const SkillFx &f) { return now - f.born > f.life + 0.05F; }), SkillFxs.end());
 	TickHero();
+	TickFrostBreath();
 	TickFloorItems();
 	TickObjects();
 	TickMonsters(dt);

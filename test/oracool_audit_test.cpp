@@ -21259,6 +21259,17 @@ TEST(OracoolPreview, DISABLED_FrostFloors)
 				setlvlnum = saved;
 			}
 			PreviewSave(view, (dir / ("frost_" + std::to_string(floor + 1) + "_" + name + ".png")).string().c_str());
+			if (floor == 0 && name == "arrival") {
+				// The cold drawn over it (2026-10-17): the blue ground mist and the snow sifting down, everything lit.
+				for (int y = 0; y < MAXDUNY; y++)
+					for (int x = 0; x < MAXDUNX; x++)
+						dLight[x][y] = 0;
+				sgOptions.Oracool.groundFog.SetValue(true);
+				sgOptions.Oracool.weather.SetValue(true);
+				oracool::ApplyGroundFog(view, centre, screenOf(centre));
+				oracool::ApplyAfterWorld(view);
+				PreviewSave(view, (dir / "frost_1_arrival_cold.png").string().c_str());
+			}
 		}
 	}
 	oracool::SetWoodsCaveMouthFloorForTest(-1);

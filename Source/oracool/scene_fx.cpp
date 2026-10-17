@@ -660,6 +660,9 @@ float FogStrength()
 {
 	if (leveltype != DTYPE_WOODS)
 		return 1.0F;
+	// The Frost Caves' (2026-10-17): a cold mist low over the snow at every hour, no sun to burn it off.
+	if (OnFrostCavesFloor())
+		return 0.7F;
 	// The desert's is blown sand, not mist: always a little drifting low over the ground, much more in a sandstorm.
 	if (OnDesertFloor())
 		return 0.45F + (Current == Weather::Sandstorm && *sgOptions.Oracool.weather ? Intensity * 1.1F : 0.0F);
@@ -682,10 +685,10 @@ bool FogLevel(uint32_t &rgb)
 	if (!*sgOptions.Oracool.groundFog)
 		return false;
 	switch (leveltype) {
-	case DTYPE_CAVES: rgb = SFX_PACK(160, 168, 178); return true;
+	case DTYPE_CAVES: rgb = InFrostCaves() ? SFX_PACK(176, 196, 222) : SFX_PACK(160, 168, 178); return true; // a frozen river's cold blue
 	case DTYPE_CRYPT: rgb = SFX_PACK(150, 140, 176); return true;
 	case DTYPE_WOODS:
-		rgb = OnDesertFloor() ? SFX_PACK(208, 182, 138) : SFX_PACK(196, 204, 212);
+		rgb = OnDesertFloor() ? SFX_PACK(208, 182, 138) : OnFrostCavesFloor() ? SFX_PACK(186, 204, 228) : SFX_PACK(196, 204, 212);
 		return FogStrength() > 0.0F;
 	default: return false;
 	}
@@ -1769,6 +1772,33 @@ void ApplyAfterWorld(const Surface &world)
 					}
 				}
 			}
+		}
+	}
+
+	// The Frost Caves (2026-10-17): snow sifting down from the cracks above, a few flakes at a time, slow and pale blue, at every hour
+	// - no sky, so no weather to wait for.
+	if (InFrostCaves() && *sgOptions.Oracool.weather) {
+		const float t = Now();
+		constexpr int Flakes = 90;
+		const float span = static_cast<float>(h + 20);
+		for (int i = 0; i < Flakes; i++) {
+			const uint32_t s = Hash(static_cast<uint32_t>(i), 57);
+			const float speed = 16.0F + Unit(s) * 20.0F;
+			const float y = std::fmod(Unit(Hash(s, 2)) * span + t * speed, span) - 10.0F;
+			const float drift = std::sin(t * (0.5F + Unit(s >> 5) * 0.6F) + Unit(Hash(s, 4)) * 6.28F) * 10.0F;
+			const int px = static_cast<int>(Unit(Hash(s, 3)) * static_cast<float>(w) + drift);
+			const int py = static_cast<int>(y);
+			// Each flake glints on and off as it turns.
+			const int alpha = 90 + static_cast<int>(70.0F * (0.5F + 0.5F * std::sin(t * 3.0F + Unit(s >> 11) * 6.28F)));
+			const int size = Unit(s >> 9) < 0.2F ? 2 : 1;
+			for (int dy = 0; dy < size; dy++)
+				for (int dx = 0; dx < size; dx++) {
+					const int x = px + dx, yy = py + dy;
+					if (x >= 0 && yy >= 0 && x < w && yy < h) {
+						uint32_t &c = *world.at<uint32_t>(x, yy);
+						c = SFX_MIX(c, 224, 234, 248, alpha);
+					}
+				}
 		}
 	}
 

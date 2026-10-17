@@ -329,6 +329,11 @@ extern DVL_API_FOR_TEST bool setlevel;
 /** Specifies the active quest level of the current game. */
 extern DVL_API_FOR_TEST _setlevels setlvlnum;
 
+/** @brief The hero is anywhere in the Frost Caves: a floor or its frozen river (their cold - the breath, the sifting snow). */
+inline bool InFrostCaves()
+{
+	return setlevel && (IsFrostLevel(setlvlnum) || IsFrostRiverLevel(setlvlnum));
+}
 /** @brief The level loaded is one of the Frost Caves' four floors (DTYPE_WOODS underground; IsUnderSky). */
 inline bool OnFrostCavesFloor()
 {
