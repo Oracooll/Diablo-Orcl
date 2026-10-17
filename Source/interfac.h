@@ -62,6 +62,10 @@ enum Cutscenes : uint8_t {
 	CutDesert,
 	/** Down into a desert cave (RfA-75, gendata\cutdcave); the Caves' painting until its own is. */
 	CutDesertCave,
+	/** Down into the Frost Caves' floors (RfA-75, gendata\cutfrost); the Caves' painting until its own is. */
+	CutFrost,
+	/** Down onto a Frost Caves' frozen river (RfA-75, gendata\cutfriver); the Caves' painting until its own is. */
+	CutFrostRiver,
 };
 
 void interface_msg_pump();

@@ -893,7 +893,7 @@ std::unique_ptr<AutomapTile[]> LoadAutomapData(size_t &tileCount)
 		return LoadFileInMem<AutomapTile>("nlevels\\l5data\\l5.amp", &tileCount);
 	case DTYPE_WOODS: {
 		// Built from Tristram's tiles (the Woods Painted Art option off): Tristram's own automap tiles.
-		if (!oracool::WoodsPaintedArtChosen() && !(setlevel && IsDesertLevel(setlvlnum))) // the desert is always painted
+		if (!oracool::WoodsPaintedArtChosen() && !(setlevel && (IsDesertLevel(setlvlnum) || IsFrostLevel(setlvlnum)))) // the desert and the Frost Caves are always painted
 			return LoadFileInMem<AutomapTile>("levels\\towndata\\automap.amp", &tileCount);
 		// The woods have no .amp: their four megatile classes (oracool/woods.cpp CreateWoods) - open ground, the forest's
 		// edge drawn as the obstacle marker, the road as dotted ground, deep forest left blank.

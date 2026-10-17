@@ -41,13 +41,18 @@ struct CaveDef {
  * @brief The caves (2026-10-14): a one-floor den on the first woods floor, a two-floor cave under the third. The desert's the same
  * (2026-10-16), under its sand holes: the Sand Warrens below the Salt Road, the Buried Halls below the Glass Flats.
  */
-constexpr std::array<CaveDef, 6> Caves { {
+constexpr std::array<CaveDef, 10> Caves { {
 	{ SL_ORCL_CAVE_1, OrclArea::Woods, 0, 0, true, "The Mossbound Den" },
 	{ SL_ORCL_CAVE_2, OrclArea::Woods, 2, 0, false, "The Underroot" },
 	{ SL_ORCL_CAVE_3, OrclArea::Woods, 2, 1, true, "The Underroot Depths" },
 	{ SL_ORCL_DESERT_CAVE_1, OrclArea::Desert, 0, 0, true, "The Sand Warrens" },
 	{ SL_ORCL_DESERT_CAVE_2, OrclArea::Desert, 2, 0, false, "The Buried Halls" },
 	{ SL_ORCL_DESERT_CAVE_3, OrclArea::Desert, 2, 1, true, "The Buried Halls Depths" },
+	// The Frost Caves' frozen rivers (2026-10-17): one under every floor, a floor of its own, its way down a hole or ice stairs.
+	{ SL_ORCL_FROST_RIVER_1, OrclArea::Frost, 0, 0, true, "The Frozen Stream" },
+	{ SL_ORCL_FROST_RIVER_2, OrclArea::Frost, 1, 0, true, "Black Ice Run" },
+	{ SL_ORCL_FROST_RIVER_3, OrclArea::Frost, 2, 0, true, "The Drowned Hall" },
+	{ SL_ORCL_FROST_RIVER_4, OrclArea::Frost, 3, 0, true, "The Still River" },
 } };
 
 /** @brief One game's caves: each floor's seed and rung, rolled on its first visit (as the woods' are). */
@@ -120,6 +125,8 @@ void BuildWoodsCaveLevel(bool fresh)
 	LoadRndLvlPal(leveltype);
 	if (cave.area == OrclArea::Desert)
 		TintDesertCavePalette();
+	else if (cave.area == OrclArea::Frost)
+		TintFrostCavePalette();
 	LoadLevelSOLData();
 	InitL3Triggers(); // the stairs' triggers; CheckWoodsCaveExits says where they lead
 	// No pack on the landing: a floor's stairs keep theirs through Freeupstairs, a set level has none.

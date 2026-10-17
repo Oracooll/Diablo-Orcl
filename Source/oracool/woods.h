@@ -43,18 +43,21 @@ namespace devilution::oracool {
 enum class OrclArea : uint8_t {
 	Woods,
 	Desert,
+	Frost, // the Frost Caves (2026-10-17): underground, on the same generator
 };
 
 /** @brief The area @p level belongs to: a floor's or a cave's (the woods for anything else). */
 inline OrclArea AreaOfLevel(_setlevels level)
 {
+	if (IsFrostLevel(level) || IsFrostRiverLevel(level))
+		return OrclArea::Frost;
 	return IsDesertLevel(level) || IsDesertCaveLevel(level) ? OrclArea::Desert : OrclArea::Woods;
 }
 
 /** @brief Floor @p floor (0-3) of @p area as a set level. */
 inline _setlevels OutdoorFloorLevel(OrclArea area, int floor)
 {
-	return static_cast<_setlevels>((area == OrclArea::Desert ? SL_FIRST_DESERT : SL_FIRST_WOODS) + floor);
+	return static_cast<_setlevels>((area == OrclArea::Frost ? SL_FIRST_FROST : area == OrclArea::Desert ? SL_FIRST_DESERT : SL_FIRST_WOODS) + floor);
 }
 
 /** @brief The hero stands on a desert floor (not its caves): its weather, its dusk, its sky. */
@@ -150,6 +153,10 @@ void EnterWoodsAtCaveMouthNext();
 
 /** @brief The floor last built is a desert floor (its art, its generator; what the drawing calls draw). */
 bool DesertBuilt();
+/** @brief The floor last built is the Frost Caves' (2026-10-17). */
+bool FrostBuilt();
+/** @brief Test hook: the Frost Caves floor last built's lights (its crystals). */
+int FrostLightCountForTest();
 
 /** @brief The cave mouth's tiles are Tristram's own cels, drawn by DrawCell even on the painted look. */
 bool WoodsTileUsesCels(Point tile);

@@ -62,7 +62,7 @@ namespace {
 //
 // So "Caves Level 9" and "Nest Level 9" both exist, and that is the point: they are the same depth
 // in two different places, and the region word is what tells them apart.
-constexpr size_t WaypointLevelCount = OrclWaypointEnd; // 0-24 the dungeon, 25-28 the woods, 29-32 the desert
+constexpr size_t WaypointLevelCount = OrclWaypointEnd; // 0-24 the dungeon, 25-28 the woods, 29-32 the desert, 33-36 the Frost Caves
 static_assert(WaypointLevelCount <= Player::MaxWaypointSlots, "the hero keeps a flag per waypoint");
 
 /**
@@ -100,6 +100,8 @@ string_view WaypointName(int level)
 			names[static_cast<size_t>(FirstWoodsWaypoint + i)] = WoodsFloorName(static_cast<_setlevels>(SL_FIRST_WOODS + i));
 		for (int i = 0; i < DesertWaypointCount; i++)
 			names[static_cast<size_t>(FirstDesertWaypoint + i)] = WoodsFloorName(static_cast<_setlevels>(SL_FIRST_DESERT + i));
+		for (int i = 0; i < FrostWaypointCount; i++)
+			names[static_cast<size_t>(FirstFrostWaypoint + i)] = WoodsFloorName(static_cast<_setlevels>(SL_FIRST_FROST + i));
 	}
 	return names[static_cast<size_t>(level)];
 }
@@ -139,8 +141,9 @@ constexpr std::array<uint8_t, 9> HellfireActLevels { {
  * @brief The Orcl act: Tristram, then the four woods floors (2026-10-14), then the desert's four (2026-10-16). The Stonegate's
  * rifts are set levels reached through the gate, not waypoints.
  */
-constexpr std::array<uint8_t, 1 + WoodsWaypointCount + DesertWaypointCount> OrclActLevels { { 0, FirstWoodsWaypoint, FirstWoodsWaypoint + 1,
-	FirstWoodsWaypoint + 2, FirstWoodsWaypoint + 3, FirstDesertWaypoint, FirstDesertWaypoint + 1, FirstDesertWaypoint + 2, FirstDesertWaypoint + 3 } };
+constexpr std::array<uint8_t, 1 + WoodsWaypointCount + DesertWaypointCount + FrostWaypointCount> OrclActLevels { { 0, FirstWoodsWaypoint, FirstWoodsWaypoint + 1,
+	FirstWoodsWaypoint + 2, FirstWoodsWaypoint + 3, FirstDesertWaypoint, FirstDesertWaypoint + 1, FirstDesertWaypoint + 2, FirstDesertWaypoint + 3,
+	FirstFrostWaypoint, FirstFrostWaypoint + 1, FirstFrostWaypoint + 2, FirstFrostWaypoint + 3 } };
 /** @brief A plain Diablo game's Hellfire tab: Tristram alone, and the note under it. */
 constexpr std::array<uint8_t, 1> TristramOnlyLevels { { 0 } };
 
@@ -898,8 +901,9 @@ void TravelToWaypointEntry(int entry)
 	if (level >= FirstWoodsWaypoint) {
 		// A woods floor is a set level: there by WM_DIABSETLVL, which lands the hero on its sigil as the dungeon's journey
 		// does (interfac.cpp, ApplyPendingWaypointSpawn).
-		const auto woods = level >= FirstDesertWaypoint ? static_cast<_setlevels>(SL_FIRST_DESERT + (level - FirstDesertWaypoint))
-		                                                : static_cast<_setlevels>(SL_FIRST_WOODS + (level - FirstWoodsWaypoint));
+		const auto woods = level >= FirstFrostWaypoint ? static_cast<_setlevels>(SL_FIRST_FROST + (level - FirstFrostWaypoint))
+		    : level >= FirstDesertWaypoint            ? static_cast<_setlevels>(SL_FIRST_DESERT + (level - FirstDesertWaypoint))
+		                                              : static_cast<_setlevels>(SL_FIRST_WOODS + (level - FirstWoodsWaypoint));
 		if (setlevel && setlvlnum == woods)
 			return; // already there
 		WaypointSpawnRequested = true;

@@ -279,7 +279,8 @@ namespace {
 constexpr int OutdoorSightRadius = 20;
 bool OutdoorSight()
 {
-	return leveltype == DTYPE_WOODS;
+	// Not the Frost Caves' floors (2026-10-17): underground the hero sees what his torch shows, as in any dungeon.
+	return leveltype == DTYPE_WOODS && !OnFrostCavesFloor();
 }
 } // namespace
 

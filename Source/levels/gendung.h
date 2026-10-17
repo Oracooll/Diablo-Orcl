@@ -69,6 +69,17 @@ enum _setlevels : int8_t {
 	SL_ORCL_DESERT_CAVE_1,
 	SL_ORCL_DESERT_CAVE_2,
 	SL_ORCL_DESERT_CAVE_3,
+	// The Frost Caves under Tristram's east edge (user, 2026-10-16: "4 100x100 underground levels in D2 Act 5 frost zones style
+	// ... Each level to have it's own 80x80 underground D2-Frozen-River-like floor"): four floors on the woods' generator in its
+	// underground mode (oracool/woods.h), and a frozen river under each on the Caves tileset (oracool/woods_caves.h).
+	SL_ORCL_FROST_1,
+	SL_ORCL_FROST_2,
+	SL_ORCL_FROST_3,
+	SL_ORCL_FROST_4,
+	SL_ORCL_FROST_RIVER_1,
+	SL_ORCL_FROST_RIVER_2,
+	SL_ORCL_FROST_RIVER_3,
+	SL_ORCL_FROST_RIVER_4,
 
 	SL_FIRST_ARENA = SL_ARENA_CHURCH,
 	SL_LAST_ARENA = SL_ARENA_CIRCLE_OF_LIFE,
@@ -80,7 +91,11 @@ enum _setlevels : int8_t {
 	SL_LAST_DESERT = SL_ORCL_DESERT_4,
 	SL_FIRST_DESERT_CAVE = SL_ORCL_DESERT_CAVE_1,
 	SL_LAST_DESERT_CAVE = SL_ORCL_DESERT_CAVE_3,
-	SL_LAST = SL_ORCL_DESERT_CAVE_3,
+	SL_FIRST_FROST = SL_ORCL_FROST_1,
+	SL_LAST_FROST = SL_ORCL_FROST_4,
+	SL_FIRST_FROST_RIVER = SL_ORCL_FROST_RIVER_1,
+	SL_LAST_FROST_RIVER = SL_ORCL_FROST_RIVER_4,
+	SL_LAST = SL_ORCL_FROST_RIVER_4,
 };
 
 inline bool IsWoodsLevel(_setlevels setLevel)
@@ -103,22 +118,35 @@ inline bool IsDesertCaveLevel(_setlevels setLevel)
 	return setLevel >= SL_FIRST_DESERT_CAVE && setLevel <= SL_LAST_DESERT_CAVE;
 }
 
-/** @brief An Orcl Act floor under the sky: the woods' or the desert's (DTYPE_WOODS, the act's outdoor level type). */
+inline bool IsFrostLevel(_setlevels setLevel)
+{
+	return setLevel >= SL_FIRST_FROST && setLevel <= SL_LAST_FROST;
+}
+
+inline bool IsFrostRiverLevel(_setlevels setLevel)
+{
+	return setLevel >= SL_FIRST_FROST_RIVER && setLevel <= SL_LAST_FROST_RIVER;
+}
+
+/**
+ * @brief An Orcl Act area's floor, on the woods' generator (DTYPE_WOODS, the act's level type): the woods' and the desert's under the
+ * sky, the Frost Caves' underground (2026-10-17; IsUnderSky and the woods' sight leave those out).
+ */
 inline bool IsOutdoorActLevel(_setlevels setLevel)
 {
-	return IsWoodsLevel(setLevel) || IsDesertLevel(setLevel);
+	return IsWoodsLevel(setLevel) || IsDesertLevel(setLevel) || IsFrostLevel(setLevel);
 }
 
-/** @brief One of the Orcl Act's caves, under the woods or the desert (the Caves tileset). */
+/** @brief One of the Orcl Act's caves, under the woods or the desert, or a Frost Caves' frozen river (the Caves tileset). */
 inline bool IsActCaveLevel(_setlevels setLevel)
 {
-	return IsWoodsCaveLevel(setLevel) || IsDesertCaveLevel(setLevel);
+	return IsWoodsCaveLevel(setLevel) || IsDesertCaveLevel(setLevel) || IsFrostRiverLevel(setLevel);
 }
 
-/** @brief An area's last floor, where its boss waits (D10): the woods' fourth, the desert's fourth. */
+/** @brief An area's last floor, where its boss waits (D10): the woods', the desert's and the Frost Caves' fourth. */
 inline bool IsActBossLevel(_setlevels setLevel)
 {
-	return setLevel == SL_LAST_WOODS || setLevel == SL_LAST_DESERT;
+	return setLevel == SL_LAST_WOODS || setLevel == SL_LAST_DESERT || setLevel == SL_LAST_FROST;
 }
 
 /** @brief A level of the Orcl Act: a floor of an area or one of its caves - generated, with the act's own rung (oracool/woods.h). */
@@ -159,9 +187,12 @@ enum dungeon_type : int8_t {
  * @brief The level stands under the sky - Tristram, or the Orcl Act's woods (D8, 2026-10-14): the weather, its rain and
  * puddles, the cloud shadows, the footprints and the fireflies are Tristram's and theirs.
  */
+inline bool OnFrostCavesFloor();
+
 inline bool IsUnderSky(dungeon_type type)
 {
-	return type == DTYPE_TOWN || type == DTYPE_WOODS;
+	// The Frost Caves' floors are DTYPE_WOODS too, but under the ground (2026-10-17): no sky, no weather, no day and night.
+	return type == DTYPE_TOWN || (type == DTYPE_WOODS && !OnFrostCavesFloor());
 }
 
 enum lvl_entry : uint8_t {
@@ -297,6 +328,12 @@ extern DVL_API_FOR_TEST uint8_t currlevel;
 extern DVL_API_FOR_TEST bool setlevel;
 /** Specifies the active quest level of the current game. */
 extern DVL_API_FOR_TEST _setlevels setlvlnum;
+
+/** @brief The level loaded is one of the Frost Caves' four floors (DTYPE_WOODS underground; IsUnderSky). */
+inline bool OnFrostCavesFloor()
+{
+	return leveltype == DTYPE_WOODS && setlevel && IsFrostLevel(setlvlnum);
+}
 /** Specifies the player viewpoint X-coordinate of the map. */
 extern dungeon_type setlvltype;
 /** Specifies the player viewpoint X,Y-coordinates of the map. */

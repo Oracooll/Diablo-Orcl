@@ -14708,13 +14708,16 @@ TEST(OracoolWaypointActs, EveryDungeonLevelSitsOnExactlyOneAct)
 
 	EXPECT_EQ(oracool::WaypointActRowCount(oracool::WaypointAct::Diablo), 17u);
 	EXPECT_EQ(oracool::WaypointActRowCount(oracool::WaypointAct::Hellfire), 9u);
-	EXPECT_EQ(oracool::WaypointActRowCount(oracool::WaypointAct::Orcl), 1u + oracool::WoodsWaypointCount + oracool::DesertWaypointCount)
-	    << "Tristram, the four woods floors and the desert's four";
-	for (int floor = 0; floor < oracool::WoodsWaypointCount + oracool::DesertWaypointCount; floor++) {
-		const int index = oracool::FirstWoodsWaypoint + floor; // the desert's follow the woods' (29-32)
+	EXPECT_EQ(oracool::WaypointActRowCount(oracool::WaypointAct::Orcl), 1u + oracool::WoodsWaypointCount + oracool::DesertWaypointCount + oracool::FrostWaypointCount)
+	    << "Tristram, the four woods floors, the desert's four and the Frost Caves' four";
+	for (int floor = 0; floor < oracool::WoodsWaypointCount + oracool::DesertWaypointCount + oracool::FrostWaypointCount; floor++) {
+		const int index = oracool::FirstWoodsWaypoint + floor; // the desert's follow the woods' (29-32), the Frost Caves' the desert's (33-36)
 		EXPECT_EQ(oracool::WaypointActLevelAt(oracool::WaypointAct::Orcl, static_cast<size_t>(1 + floor)), index) << "Orcl floor " << floor + 1;
 		EXPECT_EQ(oracool::WaypointActOfLevel(index), oracool::WaypointAct::Orcl) << "Orcl floor " << floor + 1;
-		EXPECT_LE(index, 32) << "carried by the hero file's 32-bit waypoint mask as well as its 64-bit chunk";
+		// The woods' and the desert's in the hero file's 32-bit mask as well as its 64-bit chunk; the Frost Caves' in the chunk alone.
+		EXPECT_LT(index, static_cast<int>(devilution::Player::MaxWaypointSlots)) << "carried by the hero file's 64-bit waypoint chunk";
+		if (index < oracool::FirstFrostWaypoint)
+			EXPECT_LE(index, 32) << "carried by the hero file's 32-bit waypoint mask as well as its 64-bit chunk";
 	}
 
 	for (const auto act : { oracool::WaypointAct::Diablo, oracool::WaypointAct::Hellfire, oracool::WaypointAct::Orcl }) {
@@ -21008,6 +21011,150 @@ TEST(OracoolAudit, DesertFloorsAreWalkableAndHoldTheirSights)
 }
 
 /**
+ * The Frost Caves (2026-10-17): each of their four floors, from several seeds, is a cavern that can be walked from the arrival to both
+ * ends and to its way down to the frozen river below; under the ground (not under the sky, no outdoor sight); its names, its rivers
+ * one under every floor, a light or more in its crystals on the Hollows; no fences, cottages, river or fairy ring; open floor a fair
+ * share of the box and rock the rest.
+ */
+TEST(OracoolAudit, FrostCavesAreWalkableCaverns)
+{
+	MountTestArchives(true);
+	const OrclActMapGuard mapGuard;
+	const bool savedHellfire = gbIsHellfire;
+	const dungeon_type savedType = leveltype;
+	const bool savedSetlevel = setlevel;
+	const _setlevels savedSetLevelNum = setlvlnum;
+	gbIsHellfire = true;
+	leveltype = DTYPE_WOODS;
+	setlevel = true;
+	SetDungeonMicros();
+	pMegaTiles = LoadFileInMem<MegaTile>("nlevels\\towndata\\town.til");
+	for (int floor = 0; floor < 4; floor++) {
+		EXPECT_EQ(oracool::WoodsCaveOnFloor(floor, oracool::OrclArea::Frost), static_cast<_setlevels>(SL_FIRST_FROST_RIVER + floor)) << "a frozen river under floor " << floor;
+		setlvlnum = static_cast<_setlevels>(SL_FIRST_FROST + floor);
+		EXPECT_EQ(oracool::AreaOfLevel(setlvlnum), oracool::OrclArea::Frost);
+		EXPECT_TRUE(IsOrclActLevel(setlvlnum));
+		EXPECT_FALSE(IsUnderSky(DTYPE_WOODS)) << "the Frost Caves are under the ground";
+		constexpr const char *Names[] = { "The Rime Gate", "The Glacial Hollows", "The Frostbound Deep", "The Throne of Winter" };
+		EXPECT_STREQ(oracool::WoodsFloorName(setlvlnum), Names[floor]);
+		for (const uint32_t seed : { 0x6E00D5U, 0x12345U, 0xBEEF01U, 0x77AA33U, 0x3141U }) {
+			oracool::SetWoodsCaveMouthFloorForTest(floor);
+			CreateDungeon(seed, ENTRY_SETLVL);
+			const Point entrance = oracool::StampWoodsCaveMouthForTest();
+			ASSERT_TRUE(oracool::FrostBuilt()) << "floor " << floor;
+			ASSERT_FALSE(oracool::DesertBuilt());
+			LoadLevelSOLData();
+			const Point arrival = oracool::WoodsArrival();
+			const Point wayOn = oracool::WoodsWayOn();
+			const std::set<int> seen = WalkableFrom(arrival);
+			const auto walked = [&seen](Point p) { return seen.count(p.x * MAXDUNY + p.y) != 0; };
+			const std::string at = "floor " + std::to_string(floor) + " seed " + std::to_string(seed);
+			EXPECT_TRUE(walked({ 104, arrival.y })) << at << ": the way back cannot be walked to";
+			EXPECT_TRUE(walked({ 7, wayOn.y })) << at << ": the way on cannot be walked to";
+			ASSERT_NE(entrance, Point(0, 0)) << at << ": no way down";
+			EXPECT_TRUE(walked(entrance)) << at << ": the way down cannot be walked to";
+			EXPECT_EQ(oracool::WoodsHouseCountForTest(), 0) << at;
+			// A cavern, not a field: open floor between a fifth and three fifths of the box.
+			int open = 0, inside = 0;
+			for (int y = 6; y <= 105; y++)
+				for (int x = 6; x <= 105; x++) {
+					inside++;
+					open += oracool::WoodsTreeAt({ x, y }) ? 0 : 1;
+				}
+			EXPECT_GT(open, inside / 5) << at << ": too little open floor";
+			EXPECT_LT(open, inside * 3 / 5) << at << ": too much open floor for a cave";
+			if (floor == 1)
+				EXPECT_GT(oracool::FrostLightCountForTest(), 0) << at << ": the Hollows' crystals light nothing";
+		}
+	}
+	oracool::SetWoodsCaveMouthFloorForTest(-1);
+	leveltype = savedType;
+	setlevel = savedSetlevel;
+	setlvlnum = savedSetLevelNum;
+	gbIsHellfire = savedHellfire;
+}
+
+/**
+ * The Frost Caves' floors as the game draws them (2026-10-17): ORCL_WOODS_OUT/frost_<floor>_map.png and 1280 x 720 views round the
+ * arrival, the way down and the floor's middle, through the game's own woods calls (seed ORCL_WOODS_SEED). Drawn full bright: the
+ * game's own dark is not applied here.
+ */
+TEST(OracoolPreview, DISABLED_FrostFloors)
+{
+	const char *outDir = std::getenv("ORCL_WOODS_OUT");
+	ASSERT_NE(outDir, nullptr);
+	const std::filesystem::path dir(outDir);
+	std::filesystem::create_directories(dir);
+	MountTestArchives(true);
+	InitPNG();
+	gbIsHellfire = true;
+	leveltype = DTYPE_WOODS;
+	setlevel = true;
+	SetDungeonMicros();
+	pMegaTiles = LoadFileInMem<MegaTile>("nlevels\\towndata\\town.til");
+	const char *seedText = std::getenv("ORCL_WOODS_SEED");
+	const uint32_t seed = seedText != nullptr ? static_cast<uint32_t>(std::strtoul(seedText, nullptr, 0)) : 0x6E00D5U;
+	constexpr uint32_t Colours[] = { 0x9AA4B0U, 0x7E8898U, 0x5A606AU, 0x8A7A64U, 0x3A3E46U, 0x6A8AA0U, 0x202838U, 0x5A6440U, 0x707080U };
+	for (int floor = 0; floor < 4; floor++) {
+		setlvlnum = static_cast<_setlevels>(SL_FIRST_FROST + floor);
+		oracool::SetWoodsCaveMouthFloorForTest(floor);
+		CreateDungeon(seed, ENTRY_SETLVL);
+		const Point entrance = oracool::StampWoodsCaveMouthForTest();
+		constexpr int Cell = 4;
+		OwnedSurface map = OwnedSurface::Rgb(MAXDUNX * Cell, MAXDUNY * Cell);
+		for (int y = 0; y < MAXDUNY; y++)
+			for (int x = 0; x < MAXDUNX; x++) {
+				const Point p { x, y };
+				const uint32_t c = Colours[std::min<int>(oracool::WoodsGroundAt(p), 8)];
+				for (int dy = 0; dy < Cell; dy++)
+					for (int dx = 0; dx < Cell; dx++) {
+						uint32_t px = c;
+						if (oracool::WoodsTreeAt(p))
+							px = (dx >= 1 && dx <= 2 && dy >= 1 && dy <= 2) ? 0x101418U : 0x2A2E36U;
+						if (p == oracool::WoodsArrival())
+							px = 0xFFFFFFU;
+						if (p == oracool::WoodsWayOn())
+							px = 0xFF3030U;
+						if (p == entrance)
+							px = 0x30C0FFU;
+						*map.at<uint32_t>(x * Cell + dx, y * Cell + dy) = px;
+					}
+			}
+		PreviewSave(map, (dir / ("frost_" + std::to_string(floor + 1) + "_map.png")).string().c_str());
+		oracool::ForgetWoodsMixedFloor();
+		oracool::LoadWoodsArtForTest();
+		const Point middle { (oracool::WoodsArrival().x + oracool::WoodsWayOn().x) / 2, (oracool::WoodsArrival().y + oracool::WoodsWayOn().y) / 2 };
+		std::vector<std::pair<std::string, Point>> places { { "arrival", oracool::WoodsArrival() + Displacement { -6, 2 } }, { "middle", middle } };
+		if (entrance != Point(0, 0))
+			places.emplace_back("hole", entrance);
+		for (const auto &[name, centre] : places) {
+			OwnedSurface view = OwnedSurface::Rgb(1280, 720);
+			const auto screenOf = [&](Point tile) {
+				return Point { 640 - 32 + (tile.x - centre.x) * 32 - (tile.y - centre.y) * 32, 360 + 15 + (tile.x - centre.x) * 16 + (tile.y - centre.y) * 16 };
+			};
+			for (int pass = 0; pass < 2; pass++) {
+				for (int sum = 0; sum <= 2 * (MAXDUNX - 1); sum++) {
+					for (int x = 0; x <= MAXDUNX - 1; x++) {
+						const Point tile { x, sum - x };
+						if (!InDungeonBounds(tile))
+							continue;
+						const Point at = screenOf(tile);
+						if (at.x < -96 || at.x > 1280 + 32 || at.y < -32 || at.y > 720 + 260)
+							continue;
+						if (pass == 0)
+							oracool::DrawWoodsGroundTile(view, tile, at, -1, false);
+						else
+							oracool::DrawWoodsTileSprite(view, tile, at, -1);
+					}
+				}
+			}
+			PreviewSave(view, (dir / ("frost_" + std::to_string(floor + 1) + "_" + name + ".png")).string().c_str());
+		}
+	}
+	oracool::SetWoodsCaveMouthFloorForTest(-1);
+}
+
+/**
  * The desert's monsters (2026-10-16): its own roster - none of the woods' goatmen, Fallen or Succubi - with four kinds on every rung
  * on its floors and in its caves, and its own boss on its last floor, rolled apart from the woods'.
  */
@@ -21281,10 +21428,10 @@ TEST(OracoolPreview, DISABLED_TownWalkMap)
 			for (int dy = 0; dy < Cell; dy++)
 				for (int dx = 0; dx < Cell; dx++)
 					*out.at<uint32_t>(x * Cell + dx, y * Cell + dy) = (dx == Cell - 1 || dy == Cell - 1) ? (c & 0xFEFEFEU) / 2 : c;
-			if (y >= 60 && x >= 30)
+			if (x <= 95)
 				txt << ch;
 		}
-		if (y >= 60)
+		if (y <= 100)
 			txt << "   y=" << y << "\n";
 	}
 	PreviewSave(out, (dir / "town_walk_map.png").string().c_str());

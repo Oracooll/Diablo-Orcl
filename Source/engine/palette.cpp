@@ -318,6 +318,34 @@ void TintDesertCavePalette()
 	ApplyOrigPalette(true);
 }
 
+void TintFrostCavePalette()
+{
+	if (HeadlessMode)
+		return;
+	// The level's own half (32-127) toward a cold blue-grey of its own brightness, three quarters of the way, a little darker (the
+	// Frost Caves' slate and ice, RfA-76): pale ice in its lights, black-blue stone in its darks.
+	for (int i = 32; i < 128; i++) {
+		SDL_Color &c = orig_palette[i];
+		const float l = 0.30F * static_cast<float>(c.r) + 0.59F * static_cast<float>(c.g) + 0.11F * static_cast<float>(c.b);
+		const float to[3] = { l * 0.80F, l * 0.92F + 4.0F, l * 1.12F + 10.0F };
+		Uint8 *channel[3] = { &c.r, &c.g, &c.b };
+		for (int k = 0; k < 3; k++) {
+			const float value = static_cast<float>(*channel[k]) * 0.25F + to[k] * 0.75F;
+			*channel[k] = static_cast<Uint8>(std::clamp(value, 0.0F, 255.0F));
+		}
+	}
+	// The lava's cycling colours (1-31) as frozen water: pale blue-white ice, its brightness kept, so the river's slow cycle reads as
+	// light moving under ice (R2 of the Frost Asset Catalogue).
+	for (int i = 1; i < 32; i++) {
+		SDL_Color &c = orig_palette[i];
+		const float l = 0.30F * static_cast<float>(c.r) + 0.59F * static_cast<float>(c.g) + 0.11F * static_cast<float>(c.b);
+		c.r = static_cast<Uint8>(std::clamp(l * 0.72F + 24.0F, 0.0F, 255.0F));
+		c.g = static_cast<Uint8>(std::clamp(l * 0.86F + 40.0F, 0.0F, 255.0F));
+		c.b = static_cast<Uint8>(std::clamp(l * 0.98F + 62.0F, 0.0F, 255.0F));
+	}
+	ApplyOrigPalette(true);
+}
+
 void LoadRndLvlPal(dungeon_type l)
 {
 	if (HeadlessMode)

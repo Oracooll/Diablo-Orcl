@@ -106,6 +106,11 @@ void LoadPalette(const char *pszFileName, bool blend = true);
 void ApplyOrigPalette(bool blend);
 /** @brief The Caves' palette just loaded, tinted to the desert's sandstone (oracool/woods_caves.h, the desert's caves). */
 void TintDesertCavePalette();
+/**
+ * @brief The Frost Caves' frozen rivers (2026-10-17): the Caves' rock to blue-grey ice and black stone, and their lava (1-31, the
+ * palette's cycling range) to pale frozen water - the rivers are ice, not fire. Call after the level's palette is loaded.
+ */
+void TintFrostCavePalette();
 void LoadRndLvlPal(dungeon_type l);
 void IncreaseGamma();
 void ApplyGamma(std::array<SDL_Color, 256> &dst, const std::array<SDL_Color, 256> &src, int n);

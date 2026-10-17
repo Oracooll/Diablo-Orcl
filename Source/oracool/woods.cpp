@@ -63,7 +63,8 @@ namespace {
 /** @brief An area's floors: four each (the woods', the desert's). */
 constexpr int WoodsFloors = SL_LAST_WOODS - SL_FIRST_WOODS + 1;
 static_assert(SL_LAST_DESERT - SL_FIRST_DESERT + 1 == WoodsFloors, "the desert has as many floors as the woods");
-constexpr int OrclAreaCount = 2;
+static_assert(SL_LAST_FROST - SL_FIRST_FROST + 1 == WoodsFloors, "the Frost Caves have as many floors as the woods");
+constexpr int OrclAreaCount = 3;
 
 /** @brief One game's Orcl Act: each area's floors' seeds, rolled on their first visit and kept for the rest of the game (D4). */
 struct WoodsGame {
@@ -75,18 +76,25 @@ WoodsGame Game;
 
 int AreaIndex(OrclArea area)
 {
-	return area == OrclArea::Desert ? 1 : 0;
+	return area == OrclArea::Frost ? 2 : area == OrclArea::Desert ? 1 : 0;
 }
 
 /** @brief @p level's floor within its area, 0-3 (a cave's is its own area's first). */
 int FloorIndex(_setlevels level)
 {
-	const int first = IsDesertLevel(level) ? static_cast<int>(SL_FIRST_DESERT) : static_cast<int>(SL_FIRST_WOODS);
+	const int first = IsFrostLevel(level) ? static_cast<int>(SL_FIRST_FROST) : IsDesertLevel(level) ? static_cast<int>(SL_FIRST_DESERT) : static_cast<int>(SL_FIRST_WOODS);
 	return std::clamp(static_cast<int>(level) - first, 0, WoodsFloors - 1);
 }
 
 /** @brief The floor last built (or being built) is the desert's: its generator, its art, its rules. */
 bool Desert = false;
+/** @brief The floor last built (or being built) is the Frost Caves': underground, its own caverns and art (2026-10-17). */
+bool Frost = false;
+/** @brief The floor is drawn from its own painted art alone, never Tristram's pieces: the desert's and the Frost Caves'. */
+bool OwnLook()
+{
+	return Desert || Frost;
+}
 /** @brief The floor being generated, 0-3 within its area. */
 int GenFloor = 0;
 
@@ -186,6 +194,33 @@ enum TreeKind : uint8_t {
 	AltarEclipse,
 	WallCorner,
 	WallEnd,
+	// The Frost Caves' (RfA-77, 78, 78b, 80, 80b): the cave walls, the landmarks, the clutter and the war that froze here.
+	FrostWallA,
+	FrostWallB,
+	FrostWallLow,
+	IceStalagmite,
+	IceStalagmites,
+	IceBoulder,
+	IcePillar,
+	CrystalCluster,
+	FrozenWaterfall,
+	BeastInIce,
+	RocksSnow,
+	IcicleLedge,
+	CrystalsSmall,
+	IceSlab,
+	ShrubFrozen,
+	CairnSkull,
+	BarbarianInIce,
+	WarriorSlumped,
+	BannerTorn,
+	BarricadeStakes,
+	CatapultBroken,
+	CratesBarrels,
+	SledFrozen,
+	WeaponRack,
+	ShieldsSpears,
+	PassageOn,
 	Blocker,
 	TreeKindCount,
 };
@@ -207,6 +242,9 @@ enum DesertDecor : uint8_t {
 	DecorVent,
 	DecorRug,   // the camps' rug with its pots (RfA-73)
 	DecorReeds, // a clump of dry reeds by the water (RfA-73)
+	DecorDriftRock, // the Frost Caves' lying things (RfA-78b, 80b): a drift against a rock, bones under frost, a frozen campfire
+	DecorBonesFrost,
+	DecorCampfireFrozen,
 	ScatterSlots,
 };
 
@@ -411,7 +449,7 @@ bool InMouth(Point tile)
 {
 	if (!MouthOnFloor)
 		return false;
-	if (Desert) // the sand hole: its pit and its lip
+	if (OwnLook()) // the sand hole or the hole in the ice: its pit and its lip
 		return std::max(std::abs(tile.x - MouthEntrance.x), std::abs(tile.y - MouthEntrance.y)) <= 1;
 	return tile.x >= MouthOrigin.x && tile.x < MouthOrigin.x + MouthWidth && tile.y >= MouthOrigin.y && tile.y < MouthOrigin.y + MouthHeight;
 }
@@ -451,7 +489,7 @@ bool MouthPieceIsFlat(uint16_t piece)
 /** @brief The outcrop's town pieces over the floor's tiles: all of them in the Tristram looks, its rocks and its hole in the painted. */
 void StampCaveMouth()
 {
-	if (!MouthOnFloor || Desert) // the sand hole is the desert's ground, drawn by the game, not Tristram's pieces
+	if (!MouthOnFloor || OwnLook()) // the sand hole is the desert's ground, drawn by the game, not Tristram's pieces (the Frost Caves' too)
 		return;
 	for (int dy = 0; dy < MouthHeight; dy++) {
 		for (int dx = 0; dx < MouthWidth; dx++) {
@@ -470,7 +508,7 @@ void StampCaveMouth()
 /** @brief @p tile is one of the outcrop's stamped tiles (drawn from its cels). */
 bool InMouthStamp(Point tile)
 {
-	if (Desert || !InMouth(tile))
+	if (OwnLook() || !InMouth(tile))
 		return false;
 	return MouthTileStamped[tile.y - MouthOrigin.y][tile.x - MouthOrigin.x];
 }
@@ -636,7 +674,7 @@ void SealUnreachable()
 	for (int y = Lo; y <= Hi; y++) {
 		for (int x = Lo; x <= Hi; x++) {
 			if (Tree[x][y] == NoTree && !seen[x][y])
-				Tree[x][y] = Desert ? RocksD : PineSmall;
+				Tree[x][y] = Frost ? Blocker : Desert ? RocksD : PineSmall;
 		}
 	}
 }
@@ -1820,8 +1858,380 @@ void GenerateDesert(uint32_t seed)
 	HideDeepForest();
 }
 
+/** @brief The Frost Caves' lights (2026-10-17): the crystals' cold glow, lit as a dungeon's lights are (BuildWoodsLevel). */
+std::vector<Point> FrostLights;
+/** @brief How deep each tile lies in the Frost Caves' rock: 0 open, 1 the wall's face, more behind (the dark over the rock). */
+uint8_t FrostRockDepth[MAXDUNX][MAXDUNY];
+
+/** @brief A wall piece for a tile of the caverns' wall that faces open ground (RfA-77): the two masses most, the low spur, the ice spikes. */
+TreeKind PickFrostWall(uint32_t h)
+{
+	const float u = Unit(h);
+	return u < 0.40F ? FrostWallA : u < 0.76F ? FrostWallB : u < 0.88F ? FrostWallLow : u < 0.95F ? IceStalagmites : IceStalagmite;
+}
+
+/**
+ * @brief Open cave floor round @p p: every tile within @p clear open (no wall, no prop), none of it the trodden way, far enough from
+ * the floor's ends, its way down and the places already taken.
+ */
+bool FrostSpotFits(Point p, int clear, const std::vector<Point> &taken, int apart)
+{
+	if (p.x - clear < Lo + 2 || p.y - clear < Lo + 2 || p.x + clear > Hi - 2 || p.y + clear > Hi - 2)
+		return false;
+	if (p.WalkingDistance(Arrival) < 12 || p.WalkingDistance(WayOn) < 12 || (MouthOnFloor && p.WalkingDistance(MouthEntrance) < 8))
+		return false;
+	for (const Point t : taken)
+		if (p.WalkingDistance(t) < apart)
+			return false;
+	for (int dy = -clear; dy <= clear; dy++)
+		for (int dx = -clear; dx <= clear; dx++) {
+			const Point q = p + Displacement { dx, dy };
+			if (Tree[q.x][q.y] != NoTree || Ground[q.x][q.y] == Path)
+				return false;
+		}
+	return true;
+}
+
+/** @brief A place for one of the floor's sights: every candidate from a seeded start, so a floor finds one if it has room. */
+std::optional<Point> FindFrostSpot(uint32_t seed, uint32_t salt, int clear, const std::vector<Point> &taken, int apart)
+{
+	constexpr int Margin = 6;
+	const int side = Hi - Lo + 1 - 2 * Margin;
+	const int positions = side * side;
+	const int start = static_cast<int>(Hash(seed, salt, 0xF5B07U) % static_cast<uint32_t>(positions));
+	for (int k = 0; k < positions; k++) {
+		const int at = (start + k * 7919) % positions;
+		const Point p { Lo + Margin + at % side, Lo + Margin + at / side };
+		if (FrostSpotFits(p, clear, taken, apart))
+			return p;
+	}
+	return std::nullopt;
+}
+
+/**
+ * @brief The Frost Caves' floor (user, 2026-10-16: "4 100x100 underground levels in D2 Act 5 frost zones style"): caverns, not a
+ * field. A cellular cave on the megatile cells - halls and throats of open ground in solid rock - with the trodden way wandering from
+ * the arrival at the east edge to the way on at the west, cut through wherever the rock stood in its way, so the two always join.
+ * The rock is a Blocker everywhere but where it faces open ground: there it is the RfA-77 wall pieces, packed every other tile so
+ * they read as one wall. Each floor its character: the Rime Gate the war that froze there (RfA-80, 80b), the Glacial Hollows wide
+ * halls of glacier ice, crystals and frozen falls (RfA-78), the Frostbound Deep narrow and dark with the beast in the ice, the Throne
+ * of Winter its carved paving and pillars (its throne and ring stones when RfA-82 is in). A hole or ice stairs to the frozen river
+ * below (RfA-79), and the clutter (RfA-78b) and the scatter sheet (RfA-76) over the rest.
+ */
+void GenerateFrost(uint32_t seed)
+{
+	const int floor = GenFloor;
+	std::memset(Ground, Grass, sizeof(Ground));
+	std::memset(Tree, NoTree, sizeof(Tree));
+	std::memset(Scatter, 0, sizeof(Scatter));
+	std::memset(TreeJitterX, 0, sizeof(TreeJitterX));
+	std::memset(TreeJitterY, 0, sizeof(TreeJitterY));
+	std::memset(RiverCell, 0, sizeof(RiverCell));
+	std::memset(FenceCell, 0, sizeof(FenceCell));
+	HouseCount = 0;
+	PenCount = 0;
+	OasisCentre = {};
+	OasisRadius = 0.0F;
+	RuinsCentre = {};
+	ArenaCentre = {};
+	Braziers.clear();
+	EmberRocks.clear();
+	SmokeVents.clear();
+	PaleCrystals.clear();
+	Craters.clear();
+	CampLanterns.clear();
+	FrostLights.clear();
+
+	const int span = Hi - Lo;
+	Arrival = { Hi - 4, Lo + span / 4 + static_cast<int>(Unit(Hash(seed, 1, 0)) * static_cast<float>(span) / 2) };
+	WayOn = { Lo + 4, Lo + span / 4 + static_cast<int>(Unit(Hash(seed, 2, 0)) * static_cast<float>(span) / 2) };
+
+	// The caverns on the cells: a seeded fill, smoothed five times (a cell turns to rock with five or more rock neighbours, opens with
+	// three or fewer). The Hollows the widest, the Deep the narrowest.
+	constexpr float Fill[WoodsFloors] = { 0.50F, 0.54F, 0.50F, 0.51F };
+	static bool open[WoodsCells][WoodsCells];
+	static bool next[WoodsCells][WoodsCells];
+	for (int my = 0; my < WoodsCells; my++)
+		for (int mx = 0; mx < WoodsCells; mx++)
+			open[mx][my] = mx > 0 && my > 0 && mx < WoodsCells - 1 && my < WoodsCells - 1
+			    && Unit(Hash(static_cast<uint32_t>(mx), static_cast<uint32_t>(my), seed ^ 0xF205U)) < Fill[floor];
+	for (int pass = 0; pass < 5; pass++) {
+		for (int my = 0; my < WoodsCells; my++)
+			for (int mx = 0; mx < WoodsCells; mx++) {
+				int rock = 0;
+				for (int dy = -1; dy <= 1; dy++)
+					for (int dx = -1; dx <= 1; dx++) {
+						if (dx == 0 && dy == 0)
+							continue;
+						const int nx = mx + dx, ny = my + dy;
+						if (nx < 0 || ny < 0 || nx >= WoodsCells || ny >= WoodsCells || !open[nx][ny])
+							rock++;
+					}
+				const bool edge = mx == 0 || my == 0 || mx == WoodsCells - 1 || my == WoodsCells - 1;
+				next[mx][my] = !edge && (rock >= 5 ? false : rock <= 3 ? true : open[mx][my]);
+			}
+		std::memcpy(open, next, sizeof(open));
+	}
+
+	// The ground, and the rock as Blockers for now: open cells are snow over rock, drifts in the wind's lee, gravel in the throats,
+	// rimed rock beside the walls; the Hollows' floors glacier ice, the Throne's carved paving.
+	for (int y = 0; y < MAXDUNY; y++) {
+		for (int x = 0; x < MAXDUNX; x++) {
+			const Point p { x, y };
+			if (!Inside(p)) {
+				Ground[x][y] = Forest;
+				Tree[x][y] = Blocker;
+				continue;
+			}
+			uint8_t ground = Grass;
+			if (ValueNoise(x, y, 9.0F, seed ^ 0xD21FU) > 0.62F)
+				ground = GrassDark;
+			if (ValueNoise(x, y, 11.0F, seed ^ 0x6A7EU) < 0.28F)
+				ground = GrassDry;
+			if (floor == 1 && ValueNoise(x, y, 14.0F, seed ^ 0x61AC1U) > 0.50F)
+				ground = OasisGrass;
+			if (floor == 3 && ValueNoise(x, y, 12.0F, seed ^ 0x7A12U) > 0.55F)
+				ground = Paving;
+			Ground[x][y] = ground;
+			const int mx = (x - Lo) / 2, my = (y - Lo) / 2;
+			if (!open[mx][my])
+				Tree[x][y] = Blocker;
+		}
+	}
+	// The cave's edges irregular, not the cells' squares: a rock tile beside open ground opens half the time, an open one beside
+	// rock closes a fifth of it.
+	for (int y = Lo + 1; y < Hi; y++)
+		for (int x = Lo + 1; x < Hi; x++) {
+			int rockBeside = 0;
+			for (const Displacement d : { Displacement { 1, 0 }, Displacement { -1, 0 }, Displacement { 0, 1 }, Displacement { 0, -1 } })
+				rockBeside += Tree[x + d.deltaX][y + d.deltaY] == Blocker ? 1 : 0;
+			const float u = Unit(Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), seed ^ 0xE06EU));
+			if (Tree[x][y] == Blocker && rockBeside <= 2 && u < 0.3F)
+				Tree[x][y] = NoTree;
+			else if (Tree[x][y] == NoTree && rockBeside >= 2 && u < 0.2F)
+				Tree[x][y] = Blocker;
+		}
+
+	// The trodden way, through the rock where it must be, and the strips out at both edges.
+	LayPath(Arrival, WayOn, 3, seed ^ 0x9A7EU);
+	for (int x = Arrival.x; x <= Hi; x++)
+		for (int y = Arrival.y - 1; y <= Arrival.y + 1; y++) {
+			Ground[x][y] = Path;
+			Tree[x][y] = NoTree;
+		}
+	for (int x = Lo; x <= WayOn.x; x++)
+		for (int y = WayOn.y - 1; y <= WayOn.y + 1; y++) {
+			Ground[x][y] = Path;
+			Tree[x][y] = NoTree;
+		}
+	Clearing(Arrival, 4, Path);
+	Clearing(WayOn, 4, Path);
+	GladeCentre = { (Arrival.x + WayOn.x) / 2, (Arrival.y + WayOn.y) / 2 };
+
+	// The way down to the frozen river: open floor off the trodden way, the hole or the ice stairs (RfA-79).
+	MouthOnFloor = MouthFloor >= 0;
+	std::vector<Point> taken;
+	if (MouthOnFloor) {
+		MouthEntrance = GladeCentre;
+		if (const std::optional<Point> at = FindFrostSpot(seed, 0xD0D0U, 3, taken, 0))
+			MouthEntrance = *at;
+		MouthOrigin = MouthEntrance - Displacement { 2, 2 };
+		for (int dy = -3; dy <= 3; dy++)
+			for (int dx = -3; dx <= 3; dx++) {
+				const Point q = MouthEntrance + Displacement { dx, dy };
+				if (!Inside(q))
+					continue;
+				Tree[q.x][q.y] = NoTree;
+				if (Ground[q.x][q.y] != Path)
+					Ground[q.x][q.y] = Grass;
+			}
+		taken.push_back(MouthEntrance);
+		// A trail from it to the nearest of the trodden way (the first test: on the Deep it fell in a pocket of its own, sealed).
+		Point nearest = Arrival;
+		int best = 1 << 30;
+		for (int y = Lo; y <= Hi; y++)
+			for (int x = Lo; x <= Hi; x++)
+				if (Ground[x][y] == Path && Point { x, y }.WalkingDistance(MouthEntrance) < best && Point { x, y }.WalkingDistance(MouthEntrance) > 3) {
+					best = Point { x, y }.WalkingDistance(MouthEntrance);
+					nearest = { x, y };
+				}
+		LayPath(MouthEntrance, nearest, 1, seed ^ 0x7A1CU);
+	}
+
+	// The floor's sights, each in an open place of its own.
+	const auto place = [&](uint32_t salt, int clear, std::initializer_list<std::pair<Displacement, TreeKind>> pieces) {
+		const std::optional<Point> at = FindFrostSpot(seed, salt, clear, taken, 14);
+		if (!at)
+			return;
+		taken.push_back(*at);
+		for (const auto &[d, kind] : pieces) {
+			const Point q = *at + d;
+			if (Inside(q) && Tree[q.x][q.y] == NoTree && Ground[q.x][q.y] != Path)
+				Tree[q.x][q.y] = kind;
+		}
+	};
+	switch (floor) {
+	case 0:
+		// The Rime Gate: the last stand at the caves' mouth (RfA-80, 80b).
+		place(0xF0A1U, 4, { { { 0, 0 }, BarricadeStakes }, { { -2, -2 }, BannerTorn }, { { 2, 2 }, WarriorSlumped }, { { -3, 2 }, CatapultBroken } });
+		place(0xF0A2U, 3, { { { 0, 0 }, CratesBarrels }, { { 2, -1 }, SledFrozen }, { { -2, 1 }, WeaponRack }, { { 1, 2 }, ShieldsSpears } });
+		place(0xF0A3U, 2, { { { 0, 0 }, BarbarianInIce } });
+		place(0xF0A4U, 2, { { { 0, 0 }, ShieldsSpears }, { { 2, 1 }, BannerTorn } });
+		break;
+	case 1:
+		// The Glacial Hollows: wide halls of ice, frozen falls, the crystals' cold light (RfA-78).
+		place(0xF1A1U, 3, { { { 0, 0 }, FrozenWaterfall } });
+		place(0xF1A2U, 3, { { { 0, 0 }, FrozenWaterfall } });
+		place(0xF1A3U, 2, { { { 0, 0 }, IcePillar } });
+		place(0xF1A4U, 2, { { { 0, 0 }, IcePillar } });
+		place(0xF1A5U, 2, { { { 0, 0 }, CrystalCluster }, { { 2, 1 }, CrystalsSmall } });
+		place(0xF1A6U, 2, { { { 0, 0 }, CrystalCluster }, { { -1, 2 }, CrystalsSmall } });
+		place(0xF1A7U, 2, { { { 0, 0 }, CrystalCluster } });
+		break;
+	case 2:
+		// The Frostbound Deep: narrow and dark; the beast in the ice, the frozen dead (RfA-78, 80).
+		place(0xF2A1U, 4, { { { 0, 0 }, BeastInIce } });
+		place(0xF2A2U, 2, { { { 0, 0 }, BarbarianInIce } });
+		place(0xF2A3U, 2, { { { 0, 0 }, CairnSkull }, { { 2, 1 }, WarriorSlumped } });
+		place(0xF2A4U, 2, { { { 0, 0 }, CrystalCluster } });
+		place(0xF2A5U, 2, { { { 0, 0 }, IcePillar } });
+		break;
+	default:
+		// The Throne of Winter: its pillared halls (the throne, its ring and its king's statue with RfA-82).
+		for (uint32_t k = 0; k < 6; k++)
+			place(0xF3A1U + k, 2, { { { 0, 0 }, IcePillar } });
+		place(0xF3B1U, 2, { { { 0, 0 }, BarbarianInIce } });
+		place(0xF3B2U, 2, { { { 0, 0 }, CrystalCluster } });
+		break;
+	}
+
+	// The clutter on open floor (RfA-78b, 80b), each floor its own mix.
+	for (int y = Lo + 2; y <= Hi - 2; y++)
+		for (int x = Lo + 2; x <= Hi - 2; x++) {
+			if (Tree[x][y] != NoTree || Ground[x][y] == Path)
+				continue;
+			const Point p { x, y };
+			if (p.WalkingDistance(Arrival) < 6 || p.WalkingDistance(WayOn) < 6 || (MouthOnFloor && p.WalkingDistance(MouthEntrance) < 5))
+				continue;
+			const uint32_t h = Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), seed ^ 0xC1A7U);
+			if (Unit(h) >= 0.014F)
+				continue;
+			const float u = Unit(h >> 8);
+			TreeKind kind = RocksSnow;
+			switch (floor) {
+			case 0: kind = u < 0.25F ? RocksSnow : u < 0.45F ? ShrubFrozen : u < 0.60F ? IceBoulder : u < 0.75F ? IcicleLedge : u < 0.88F ? CairnSkull : IceStalagmite; break;
+			case 1: kind = u < 0.22F ? IceSlab : u < 0.42F ? CrystalsSmall : u < 0.60F ? IceStalagmite : u < 0.75F ? IcicleLedge : u < 0.88F ? IceBoulder : RocksSnow; break;
+			case 2: kind = u < 0.25F ? RocksSnow : u < 0.45F ? CairnSkull : u < 0.62F ? IceStalagmites : u < 0.78F ? IcicleLedge : u < 0.90F ? CrystalsSmall : IceBoulder; break;
+			default: kind = u < 0.30F ? IceStalagmite : u < 0.50F ? IcicleLedge : u < 0.70F ? RocksSnow : u < 0.85F ? IceBoulder : CrystalsSmall; break;
+			}
+			Tree[x][y] = kind;
+		}
+
+	// The wide ones block their footprints, before the walk is sealed.
+	for (int y = Lo; y <= Hi; y++)
+		for (int x = Lo; x <= Hi; x++)
+			if (Tree[x][y] == BeastInIce || Tree[x][y] == FrozenWaterfall || Tree[x][y] == CatapultBroken || Tree[x][y] == BarricadeStakes
+			    || Tree[x][y] == SledFrozen)
+				BlockFootprint({ x, y });
+	SealUnreachable();
+
+	// The rock that faces open ground stands as the wall pieces, every other tile and a third of the rest, so the wall reads whole;
+	// the rest of the rock stays unseen.
+	for (int y = Lo; y <= Hi; y++)
+		for (int x = Lo; x <= Hi; x++) {
+			if (Tree[x][y] != Blocker)
+				continue;
+			bool facesOpen = false;
+			for (int dy = -1; dy <= 1 && !facesOpen; dy++)
+				for (int dx = -1; dx <= 1 && !facesOpen; dx++)
+					facesOpen = InDungeonBounds({ x + dx, y + dy }) && Tree[x + dx][y + dy] == NoTree;
+			if (!facesOpen)
+				continue;
+			const uint32_t h = Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), seed ^ 0x7A11U);
+			Ground[x][y] = Forest;
+			Tree[x][y] = PickFrostWall(h >> 4);
+		}
+	// How deep each tile lies in the rock: 0 open (a prop on open floor too), 1 the wall's face, more behind it.
+	std::memset(FrostRockDepth, 0, sizeof(FrostRockDepth));
+	{
+		const auto rock = [](int x, int y) {
+			const uint8_t t = Tree[x][y];
+			return t == Blocker || (t >= FrostWallA && t <= IceStalagmite);
+		};
+		std::vector<Point> frontier;
+		for (int y = 0; y < MAXDUNY; y++)
+			for (int x = 0; x < MAXDUNX; x++) {
+				if (!rock(x, y))
+					continue;
+				FrostRockDepth[x][y] = 255;
+				bool face = false;
+				for (int dy = -1; dy <= 1 && !face; dy++)
+					for (int dx = -1; dx <= 1 && !face; dx++)
+						face = InDungeonBounds({ x + dx, y + dy }) && !rock(x + dx, y + dy);
+				if (face) {
+					FrostRockDepth[x][y] = 1;
+					frontier.push_back({ x, y });
+				}
+			}
+		for (size_t i = 0; i < frontier.size(); i++) {
+			const Point p = frontier[i];
+			for (const Displacement d : { Displacement { 1, 0 }, Displacement { -1, 0 }, Displacement { 0, 1 }, Displacement { 0, -1 } }) {
+				const Point n = p + d;
+				if (!InDungeonBounds(n) || FrostRockDepth[n.x][n.y] <= FrostRockDepth[p.x][p.y] + 1)
+					continue;
+				FrostRockDepth[n.x][n.y] = static_cast<uint8_t>(FrostRockDepth[p.x][p.y] + 1);
+				frontier.push_back(n);
+			}
+		}
+	}
+	// The wall's second row: two tiles in five behind its face stand too, so the wall has mass.
+	for (int y = Lo; y <= Hi; y++)
+		for (int x = Lo; x <= Hi; x++)
+			if (Tree[x][y] == Blocker && FrostRockDepth[x][y] == 2 && Unit(Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), seed ^ 0x7A12U)) < 0.4F)
+				Tree[x][y] = Unit(Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), seed ^ 0x7A13U)) < 0.5F ? FrostWallA : FrostWallB;
+
+	// The ground details (RfA-76's sheet) and the lying things (RfA-78b, 80b); none on the way, the hole or the walls.
+	constexpr int FrostScatterWeight[12] = { 4, 2, 3, 3, 2, 2, 1, 1, 2, 2, 2, 1 };
+	for (int y = 0; y < MAXDUNY; y++) {
+		for (int x = 0; x < MAXDUNX; x++) {
+			const uint32_t h = Hash(static_cast<uint32_t>(x), static_cast<uint32_t>(y), seed ^ 0x5CA7U);
+			if (Tree[x][y] != NoTree) {
+				TreeJitterX[x][y] = static_cast<int8_t>(static_cast<int>(h & 15) - 8);
+				TreeJitterY[x][y] = static_cast<int8_t>(static_cast<int>((h >> 4) & 7) - 4);
+				continue;
+			}
+			if (!Inside({ x, y }) || Ground[x][y] == Path || (MouthOnFloor && Point { x, y }.WalkingDistance(MouthEntrance) <= 3))
+				continue;
+			const float u = Unit(h >> 8);
+			if (u < 0.05F) {
+				int total = 0;
+				for (const int w : FrostScatterWeight)
+					total += w;
+				int pick = static_cast<int>((h >> 16) % static_cast<uint32_t>(total));
+				int cell = 0;
+				while (cell < 11 && pick >= FrostScatterWeight[cell])
+					pick -= FrostScatterWeight[cell++];
+				Scatter[x][y] = static_cast<uint8_t>(cell + 1);
+			} else if (u < 0.062F) {
+				const uint32_t k = (h >> 20) % 5U;
+				Scatter[x][y] = static_cast<uint8_t>((k < 2 ? DecorDriftRock : k < 4 ? DecorBonesFrost : (floor == 0 ? DecorCampfireFrozen : DecorBonesFrost)) + 1);
+			}
+		}
+	}
+	// What lights the dark (BuildWoodsLevel): the crystals.
+	for (int y = Lo; y <= Hi; y++)
+		for (int x = Lo; x <= Hi; x++)
+			if (Tree[x][y] == CrystalCluster || Tree[x][y] == CrystalsSmall)
+				FrostLights.push_back({ x, y });
+	HideDeepForest();
+}
+
 void Generate(uint32_t seed)
 {
+	if (Frost) {
+		GenerateFrost(seed);
+		return;
+	}
 	if (Desert) {
 		GenerateDesert(seed);
 		return;
@@ -2002,6 +2412,20 @@ constexpr GroundFile GroundFiles[OrclAreaCount][MaterialCount] = {
 		{ "levels\\desert\\marsh_reeds.png", 14 },
 		{ "levels\\desert\\buried_paving.png", 20 },
 	},
+	{
+		// The Frost Caves (RfA-76, 76b, 76c, 76d), in the woods' roles: Grass the packed snow, GrassDark the drifts, GrassDry the
+		// frozen gravel, Path the trodden way, Forest the rimed rock by the walls; the glacier ice and the lakes' black ice where the
+		// desert has its oasis, and the Throne's carved paving. The desert's scales until the Designer's Frost tab saves its own.
+		{ "levels\\frost\\snow_packed.png", 14 },
+		{ "levels\\frost\\snowdrift.png", 18 },
+		{ "levels\\frost\\frozen_gravel.png", 14 },
+		{ "levels\\frost\\trodden_path.png", 22 },
+		{ "levels\\frost\\rime_rock.png", 16 },
+		{ "levels\\frost\\glacier_ice.png", 18 },
+		{ "levels\\frost\\black_ice.png", 18 },
+		{ nullptr, 0 },
+		{ "levels\\frost\\frost_paving.png", 20 },
+	},
 };
 
 /** @brief A standing picture: its file, its foot point in the painting, its scale, whether it sways in the wind, its area. */
@@ -2081,6 +2505,32 @@ constexpr TreeFile TreeFiles[TreeKindCount] = {
 	{ "levels\\desert\\altar_eclipse.png", 96, 148, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\wall_corner.png", 112, 212, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\wall_end.png", 80, 212, 29, false, OrclArea::Desert },
+	{ "levels\\frost\\wall_mass_a.png", 128, 308, 46, false, OrclArea::Frost },
+	{ "levels\\frost\\wall_mass_b.png", 128, 276, 46, false, OrclArea::Frost },
+	{ "levels\\frost\\wall_low.png", 160, 212, 44, false, OrclArea::Frost },
+	{ "levels\\frost\\stalagmite.png", 56, 276, 40, false, OrclArea::Frost },
+	{ "levels\\frost\\stalagmites_three.png", 96, 212, 40, false, OrclArea::Frost },
+	{ "levels\\frost\\boulder_ice.png", 96, 148, 36, false, OrclArea::Frost },
+	{ "levels\\frost\\ice_pillar.png", 80, 372, 40, false, OrclArea::Frost },
+	{ "levels\\frost\\crystal_cluster.png", 96, 244, 36, false, OrclArea::Frost },
+	{ "levels\\frost\\frozen_waterfall.png", 144, 372, 42, false, OrclArea::Frost },
+	{ "levels\\frost\\beast_in_ice.png", 192, 276, 40, false, OrclArea::Frost },
+	{ "levels\\frost\\rocks_snow.png", 80, 100, 29, false, OrclArea::Frost },
+	{ "levels\\frost\\icicle_ledge.png", 80, 164, 29, false, OrclArea::Frost },
+	{ "levels\\frost\\crystals_small.png", 56, 116, 29, false, OrclArea::Frost },
+	{ "levels\\frost\\ice_slab.png", 88, 132, 29, false, OrclArea::Frost },
+	{ "levels\\frost\\shrub_frozen.png", 72, 148, 29, false, OrclArea::Frost },
+	{ "levels\\frost\\cairn_skull.png", 56, 164, 29, false, OrclArea::Frost },
+	{ "levels\\frost\\barbarian_in_ice.png", 64, 276, 29, false, OrclArea::Frost },
+	{ "levels\\frost\\warrior_slumped.png", 80, 116, 29, false, OrclArea::Frost },
+	{ "levels\\frost\\banner_torn.png", 48, 276, 29, false, OrclArea::Frost },
+	{ "levels\\frost\\barricade_stakes.png", 128, 148, 29, false, OrclArea::Frost },
+	{ "levels\\frost\\catapult_broken.png", 144, 180, 29, false, OrclArea::Frost },
+	{ "levels\\frost\\crates_barrels.png", 80, 132, 29, false, OrclArea::Frost },
+	{ "levels\\frost\\sled_frozen.png", 112, 116, 29, false, OrclArea::Frost },
+	{ "levels\\frost\\weapon_rack.png", 80, 148, 29, false, OrclArea::Frost },
+	{ "levels\\frost\\shields_spears.png", 80, 148, 29, false, OrclArea::Frost },
+	{ "levels\\frost\\passage_on.png", 160, 308, 29, false, OrclArea::Frost },
 	{ nullptr, 0, 0, 0, false, OrclArea::Desert }, // Blocker: never drawn
 };
 
@@ -2098,6 +2548,9 @@ constexpr TreeFile DecorFiles[ScatterSlots - 12] = {
 	{ "levels\\desert\\smoke_vent.png", 48, 54, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\rug_pots.png", 80, 84, 29, false, OrclArea::Desert },
 	{ "levels\\desert\\reed_clump.png", 48, 116, 29, true, OrclArea::Desert },
+	{ "levels\\frost\\drift_rock.png", 88, 100, 29, false, OrclArea::Frost },
+	{ "levels\\frost\\bones_frost.png", 80, 84, 29, false, OrclArea::Frost },
+	{ "levels\\frost\\campfire_frozen.png", 64, 84, 29, false, OrclArea::Frost },
 };
 
 /** @brief One area's pictures, loaded the first time one of its floors is built. */
@@ -2117,7 +2570,7 @@ std::array<AreaArtSet, OrclAreaCount> AreaArt;
 /** @brief The pictures of the floor last built's area. */
 AreaArtSet &Art()
 {
-	return AreaArt[Desert ? 1 : 0];
+	return AreaArt[Frost ? 2 : Desert ? 1 : 0];
 }
 
 /** @brief A PNG from the archives as 32-bit RGBA, or nullptr (logged). The caller frees it. */
@@ -2200,9 +2653,11 @@ bool LoadScaled(const char *path, Picture &out, bool sprite, int percent)
 constexpr int ScatterPercent[OrclAreaCount][12] = {
 	{ 73, 88, 72, 79, 120, 120, 65, 43, 93, 85, 120, 50 },
 	{ 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80 },
+	{ 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80 },
 };
 
 uint32_t ScaleRgb(uint32_t c, float kr, float kg, float kb); // below, with the desert's ground features
+extern uint8_t FrostRockDepth[MAXDUNX][MAXDUNY]; // below, with the Frost Caves' generator
 
 /** @brief A standing picture @p file into @p out at its scale, its foot point scaled with it. */
 bool LoadStanding(const TreeFile &file, Picture &out)
@@ -2217,9 +2672,11 @@ bool LoadStanding(const TreeFile &file, Picture &out)
 /** @brief This floor's painted way down (RfA-71b), or nullptr: the sinkhole above the Sand Warrens, the stairway above the Buried Halls. */
 const Picture *DesertEntrancePicture()
 {
-	if (!MouthOnFloor || !Desert)
+	if (!MouthOnFloor || !OwnLook())
 		return nullptr;
-	const Picture &pic = Art().entrances[WoodsCaveOnFloor(GenFloor, OrclArea::Desert) == SL_ORCL_DESERT_CAVE_1 ? 0 : 1];
+	// The desert's by its cave; the Frost Caves' the hole and the stairs in turn, floor by floor.
+	const int which = Frost ? GenFloor % 2 : WoodsCaveOnFloor(GenFloor, OrclArea::Desert) == SL_ORCL_DESERT_CAVE_1 ? 0 : 1;
+	const Picture &pic = Art().entrances[which];
 	return pic.px.empty() ? nullptr : &pic;
 }
 
@@ -2237,6 +2694,11 @@ struct EntranceFile {
 constexpr EntranceFile EntranceFiles[2] = {
 	{ "levels\\desert\\sinkhole_warrens.png", 224, 128 },
 	{ "levels\\desert\\stairs_buried_halls.png", 224, 192 },
+};
+/** @brief The Frost Caves' ways down to their frozen rivers (RfA-79): a hole with a rope ladder, and ice stairs - every other floor. */
+constexpr EntranceFile FrostEntranceFiles[2] = {
+	{ "levels\\frost\\hole_ladder.png", 224, 128 },
+	{ "levels\\frost\\stairs_ice.png", 224, 192 },
 };
 constexpr int EntrancePercent = 50;
 
@@ -2322,7 +2784,7 @@ void LoadArt()
 	if (art.tried)
 		return;
 	art.tried = true;
-	const OrclArea area = Desert ? OrclArea::Desert : OrclArea::Woods;
+	const OrclArea area = Frost ? OrclArea::Frost : Desert ? OrclArea::Desert : OrclArea::Woods;
 	const int a = AreaIndex(area);
 	bool ok = true;
 	for (int m = 0; m < MaterialCount; m++) {
@@ -2335,7 +2797,7 @@ void LoadArt()
 		if (TreeFiles[t].path != nullptr && TreeFiles[t].area == area)
 			LoadStanding(TreeFiles[t], art.trees[t]);
 	}
-	if (SDL_Surface *sheet = LoadRgba(Desert ? "levels\\desert\\scatter_sheet.png" : "levels\\woods\\scatter_sheet.png"); sheet != nullptr) {
+	if (SDL_Surface *sheet = LoadRgba(Frost ? "levels\\frost\\scatter_sheet.png" : Desert ? "levels\\desert\\scatter_sheet.png" : "levels\\woods\\scatter_sheet.png"); sheet != nullptr) {
 		const int cell = sheet->w / 4;
 		for (int c = 0; c < 12; c++) {
 			ResampleRgba(sheet, (c % 4) * cell, (c / 4) * cell, cell, cell, art.scatter[c], true, ScatterPercent[a][c]);
@@ -2347,9 +2809,11 @@ void LoadArt()
 	} else {
 		ok = false;
 	}
-	if (Desert) {
+	if (OwnLook()) {
+		// The area's own lying things (each area's decor slots its own).
 		for (int d = 0; d < ScatterSlots - 12; d++)
-			LoadStanding(DecorFiles[d], art.scatter[12 + d]);
+			if (DecorFiles[d].area == area)
+				LoadStanding(DecorFiles[d], art.scatter[12 + d]);
 		// A way down that fails to load leaves the game-drawn funnel in its place.
 		std::array<double, 3> sandRgb { 0, 0, 0 };
 		for (const uint32_t c : art.ground[Grass].px) {
@@ -2360,9 +2824,11 @@ void LoadArt()
 		for (double &ch : sandRgb)
 			ch /= static_cast<double>(std::max<size_t>(art.ground[Grass].px.size(), 1));
 		for (int e = 0; e < 2; e++)
-			LoadDecal(EntranceFiles[e], art.entrances[e], EntrancePercent, sandRgb);
-		constexpr EntranceFile CraterFile { "levels\\desert\\crater_scorched.png", 128, 64 };
-		LoadDecal(CraterFile, art.crater, 40, sandRgb);
+			LoadDecal(Frost ? FrostEntranceFiles[e] : EntranceFiles[e], art.entrances[e], EntrancePercent, sandRgb);
+		if (Desert) {
+			constexpr EntranceFile CraterFile { "levels\\desert\\crater_scorched.png", 128, 64 };
+			LoadDecal(CraterFile, art.crater, 40, sandRgb);
+		}
 		// Each ground near the sand's brightness (the first preview, 2026-10-16: the bedrock lay on the sand as dark slabs, and where
 		// two grounds of such different light meet, the tile grid shows as straight lines): the salt road a little lighter so it
 		// reads as a road, the mud darker as wet ground is, the rest within a few percent of the sand.
@@ -2575,13 +3041,14 @@ bool WoodsPaintedArtChosen()
 void CreateWoods(uint32_t seed, lvl_entry /*entry*/)
 {
 	Desert = setlevel && IsDesertLevel(setlvlnum);
+	Frost = setlevel && IsFrostLevel(setlvlnum);
 	GenFloor = FloorIndex(setlvlnum);
 	// The tile data before the generator: it picks its solid piece from it (LoadGameLevel loads it after LoadSetMap).
 	LoadLevelSOLData();
 	FindSolidPiece();
 	Generate(seed);
 	// The desert has no Tristram look: its floors are always the painted ones.
-	BuiltVanilla = !Desert && !WoodsPaintedArtChosen();
+	BuiltVanilla = !OwnLook() && !WoodsPaintedArtChosen();
 	BuiltMixed = BuiltVanilla && *sgOptions.Oracool.woodsPaintedTrees;
 	std::memset(WoodsLookPiece, 0, sizeof(WoodsLookPiece));
 	if (!BuiltMixed && BuiltVanilla) {
@@ -2643,8 +3110,10 @@ void CreateWoods(uint32_t seed, lvl_entry /*entry*/)
 			MapCell[mx][my] = kind;
 		}
 	}
-	// Outdoors under the sky: the ground is lit all round, not dark beyond the hero's torch (Tristram's light is 0).
-	std::memset(dLight, 3, sizeof(dLight));
+	// Outdoors under the sky: the ground is lit all round, not dark beyond the hero's torch (Tristram's light is 0). Underground,
+	// the Frost Caves keep a dungeon's dark: the hero's torch and their own lights (BuildWoodsLevel) show the way.
+	if (!Frost)
+		std::memset(dLight, 3, sizeof(dLight));
 	ViewPosition = Arrival;
 }
 
@@ -2782,7 +3251,7 @@ void PlanWoodsWorld(uint32_t seed, int floor)
 	const auto along = [&](int percent) { return road[std::min(road.size() - 1, road.size() * static_cast<size_t>(percent) / 100)]; };
 	const auto open = [](Point p) { return WorldOpen(p); };
 	// The fairy ring in the glade's middle, where nothing else stands (the woods' alone).
-	HasFairyRing = !Desert && WorldLoose(GladeCentre) && !TileHasAny(dPiece[GladeCentre.x][GladeCentre.y], TileProperties::Solid);
+	HasFairyRing = !OwnLook() && WorldLoose(GladeCentre) && !TileHasAny(dPiece[GladeCentre.x][GladeCentre.y], TileProperties::Solid);
 	if (HasFairyRing)
 		Take(GladeCentre, 3);
 	if (road.empty())
@@ -2873,7 +3342,7 @@ void PlanWoodsWorld(uint32_t seed, int floor)
 		}), 2);
 	// Two will-o'-wisps, each over a chest in a pocket of the forest six to ten tiles off the road (the woods' alone).
 	for (const int percent : { 30, 70 }) {
-		if (Desert || WispCount >= static_cast<int>(Wisps.size()))
+		if (OwnLook() || WispCount >= static_cast<int>(Wisps.size()))
 			break;
 		const Point from = along(percent);
 		const uint32_t h = Hash(seed, 14, static_cast<uint32_t>(percent));
@@ -3322,7 +3791,7 @@ void BuildWoodsLevel(bool fresh)
 	const Point sigil = Arrival + Displacement { -2, -2 };
 	Scatter[sigil.x][sigil.y] = 0;
 	if (fresh)
-		AddGeneratedLevelWaypointSigil(sigil, (area == OrclArea::Desert ? FirstDesertWaypoint : FirstWoodsWaypoint) + floor);
+		AddGeneratedLevelWaypointSigil(sigil, (area == OrclArea::Frost ? FirstFrostWaypoint : area == OrclArea::Desert ? FirstDesertWaypoint : FirstWoodsWaypoint) + floor);
 	else
 		EnsureWaypointGraphicsLoaded();
 	// What stands along the roads (PlanWoodsWorld): planned on every build, its objects added on the first.
@@ -3330,6 +3799,11 @@ void BuildWoodsLevel(bool fresh)
 	EnsureWoodsWorldGraphics();
 	if (fresh)
 		PlaceWoodsWorldObjects();
+	// The Frost Caves' crystals light the dark round them, as a dungeon's lights do (2026-10-17).
+	if (area == OrclArea::Frost) {
+		for (const Point at : FrostLights)
+			AddLight(at, Tree[at.x][at.y] == CrystalCluster ? 7 : 4);
+	}
 	if (!HeadlessMode) {
 		LoadArt();
 		BuildEdgeNoise();
@@ -3367,6 +3841,21 @@ bool OnDesertGate(Point tile)
 	return tile.x >= DesertGateX0 && tile.x <= DesertGateX1 && tile.y >= DesertGateY0 && tile.y <= DesertGateY1;
 }
 
+/**
+ * @brief The way down into the Frost Caves: on Tristram's east edge past the cows' pen fence (user, 2026-10-16, candidate A: "East
+ * edge"), the open edge rows there (the walk map, 2026-10-17: x 83-84 open at y 27-33). Standing on it loads the Rime Gate. The
+ * painted cave mouth (RfA-79's mouth_tristram) stands here when the town draws it.
+ */
+constexpr int FrostGateX0 = 83;
+constexpr int FrostGateX1 = 84;
+constexpr int FrostGateY0 = 29;
+constexpr int FrostGateY1 = 32;
+
+bool OnFrostGate(Point tile)
+{
+	return tile.x >= FrostGateX0 && tile.x <= FrostGateX1 && tile.y >= FrostGateY0 && tile.y <= FrostGateY1;
+}
+
 /** @brief Whether the hero last stood in the woods' way-on strip, so its message shows once per visit to it. */
 bool AtWayOnBefore = false;
 
@@ -3376,6 +3865,8 @@ Point WoodsTownReturnTile()
 {
 	if (IsDesertLevel(setlvlnum))
 		return { (DesertGateX0 + DesertGateX1) / 2, DesertGateY1 + 2 }; // two rows in from the desert's gate
+	if (IsFrostLevel(setlvlnum))
+		return { FrostGateX0 - 2, (FrostGateY0 + FrostGateY1) / 2 }; // two tiles in from the Frost Caves' gate
 	return { 57, GateY0 - 2 }; // on the cleared path, two rows above the entrance
 }
 
@@ -3391,10 +3882,11 @@ bool CheckWoodsEdges()
 	const Point tile = player.position.tile;
 	if (leveltype == DTYPE_TOWN) {
 		const bool woods = OnTownGate(tile);
-		if (!woods && !OnDesertGate(tile))
+		const bool frost = OnFrostGate(tile);
+		if (!woods && !frost && !OnDesertGate(tile))
 			return false;
-		setlvltype = DTYPE_WOODS; // BEFORE StartNewLvl: the level loads its tileset from this (the desert's too)
-		StartNewLvl(player, WM_DIABSETLVL, woods ? SL_ORCL_WOODS_1 : SL_ORCL_DESERT_1);
+		setlvltype = DTYPE_WOODS; // BEFORE StartNewLvl: the level loads its tileset from this (the desert's and the Frost Caves' too)
+		StartNewLvl(player, WM_DIABSETLVL, woods ? SL_ORCL_WOODS_1 : frost ? SL_ORCL_FROST_1 : SL_ORCL_DESERT_1);
 		return true;
 	}
 	if (leveltype != DTYPE_WOODS || !setlevel || !IsOutdoorActLevel(setlvlnum))
@@ -3425,7 +3917,9 @@ bool CheckWoodsEdges()
 		return true;
 	}
 	if (atWayOn && !AtWayOnBefore)
-		EventPlrMsg(area == OrclArea::Desert ? "The salt road ends here, at the Sun-Eater's tomb." : "The path ends here, at the heart of the woods.", UiFlags::ColorWhite);
+		EventPlrMsg(area == OrclArea::Frost ? "The way ends here, before the Throne of Winter."
+		            : area == OrclArea::Desert ? "The salt road ends here, at the Sun-Eater's tomb." : "The path ends here, at the heart of the woods.",
+		    UiFlags::ColorWhite);
 	AtWayOnBefore = atWayOn;
 	return false;
 }
@@ -3523,6 +4017,16 @@ bool DesertBuilt()
 	return Desert;
 }
 
+bool FrostBuilt()
+{
+	return Frost;
+}
+
+int FrostLightCountForTest()
+{
+	return static_cast<int>(FrostLights.size());
+}
+
 void EnterWoodsAtCaveMouthNext()
 {
 	EnterAtCaveMouth = true;
@@ -3553,7 +4057,7 @@ bool ShellPieceIsFlat(uint16_t piece)
 
 bool WoodsTileUsesCels(Point tile)
 {
-	if (leveltype != DTYPE_WOODS || Desert)
+	if (leveltype != DTYPE_WOODS || OwnLook())
 		return false;
 	if (InMouthStamp(tile) || InRiver(tile))
 		return true;
@@ -3880,6 +4384,7 @@ const char *WoodsFloorName(_setlevels level)
 	constexpr const char *Names[OrclAreaCount][WoodsFloors] = {
 		{ "The Greywood Verge", "Thornmoor", "The Hanging Wood", "Witchbark Hollow" },
 		{ "The Salt Road", "The Ash Dunes", "The Glass Flats", "Tomb of the Sun-Eater" },
+		{ "The Rime Gate", "The Glacial Hollows", "The Frostbound Deep", "The Throne of Winter" },
 	};
 	return Names[AreaIndex(AreaOfLevel(level))][FloorIndex(level)];
 }
@@ -3919,6 +4424,22 @@ uint32_t MixRgb(uint32_t c, float r, float g, float b, float a)
  */
 uint32_t DesertGroundFeature(uint32_t c, float u, float v, int wx, int wy)
 {
+	if (Frost) {
+		// Inside the rock, black: the depth blended between the four tiles round the pixel, so the dark comes on softly behind the
+		// wall's face and is whole two tiles in.
+		const int i0 = std::clamp(static_cast<int>(std::floor(u)), 0, MAXDUNX - 2);
+		const int j0 = std::clamp(static_cast<int>(std::floor(v)), 0, MAXDUNY - 2);
+		const float fx = std::clamp(u - static_cast<float>(i0), 0.0F, 1.0F), fy = std::clamp(v - static_cast<float>(j0), 0.0F, 1.0F);
+		const auto depth = [](int x, int y) { return std::min<float>(static_cast<float>(FrostRockDepth[x][y]), 3.0F); };
+		const float top = depth(i0, j0) + (depth(i0 + 1, j0) - depth(i0, j0)) * fx;
+		const float bottom = depth(i0, j0 + 1) + (depth(i0 + 1, j0 + 1) - depth(i0, j0 + 1)) * fx;
+		const float d = top + (bottom - top) * fy;
+		const float dark = std::clamp((d - 0.7F) / 1.3F, 0.0F, 1.0F);
+		if (dark > 0.0F) {
+			const float k = 1.0F - 0.94F * dark;
+			c = ScaleRgb(c, k * 0.92F, k * 0.96F, k);
+		}
+	}
 	// The sun's direction in tile space: toward the screen's top left, (-1, -0.4) normalised.
 	constexpr float Lu = -0.928F, Lv = -0.371F;
 	if (OasisRadius > 0.0F) {
@@ -4096,7 +4617,7 @@ void DrawGroundAt(const Surface &out, Point tile, Point world, Point target, int
 				const int fine = (mats[k2] & 1) != 0 ? n[0] : n[1];
 				const int coarse = (mats[k2] & 1) != 0 ? n2[1] : n2[0];
 				// The desert's twice as far: its grounds lie in big soft patches, not the woods' fine weave of grasses.
-				weights[k2] += (static_cast<float>(fine) * 0.0030F + static_cast<float>(coarse) * 0.0035F) * (mats[k2] == Path ? 0.6F : 1.0F) * (Desert ? 1.9F : 1.0F);
+				weights[k2] += (static_cast<float>(fine) * 0.0030F + static_cast<float>(coarse) * 0.0035F) * (mats[k2] == Path ? 0.6F : 1.0F) * (OwnLook() ? 1.9F : 1.0F);
 			}
 			int best = 0, second = -1;
 			for (int k2 = 1; k2 < count; k2++) {
@@ -4131,7 +4652,7 @@ void DrawGroundAt(const Surface &out, Point tile, Point world, Point target, int
 					c = (mix(c, o, 16) << 16) | (mix(c, o, 8) << 8) | mix(c, o, 0);
 				}
 			}
-			if (Desert)
+			if (OwnLook())
 				c = DesertGroundFeature(c, u, v, wx, wy);
 			row[x] = brightness >= 256 ? (c & 0xFFFFFF) | 0x010101 : Shade(c, brightness);
 		}
@@ -4764,6 +5285,7 @@ void DrawWoodsGateTint(const Surface &out, Point tile, Point target)
 	if (leveltype == DTYPE_TOWN) {
 		marks[markCount++] = { (GateX0 + GateX1) * 0.5F, (GateY0 + GateY1) * 0.5F, 2.6F, true };
 		marks[markCount++] = { (DesertGateX0 + DesertGateX1) * 0.5F, (DesertGateY0 + DesertGateY1) * 0.5F, 2.6F, true };
+		marks[markCount++] = { (FrostGateX0 + FrostGateX1) * 0.5F, (FrostGateY0 + FrostGateY1) * 0.5F, 2.6F, true };
 	} else if (leveltype == DTYPE_WOODS && setlevel) {
 		const bool lastFloor = FloorIndex(setlvlnum) == WoodsFloors - 1;
 		// The road back, the way on to the next floor (amber on the last, where it ends), the cave's entrance.

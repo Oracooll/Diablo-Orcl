@@ -276,6 +276,11 @@ Cutscenes PickCutscene(interface_mode uMsg)
 			return CutWoodsCave;
 		if (IsDesertCaveLevel(setlvlnum))
 			return CutDesertCave;
+		// The Frost Caves (RfA-75): their own going down, Tristram's coming back up.
+		if (IsFrostLevel(setlvlnum))
+			return uMsg == WM_DIABRTNLVL ? CutTown : CutFrost;
+		if (IsFrostRiverLevel(setlvlnum))
+			return CutFrostRiver;
 		if (setlvlnum == SL_BONECHAMB)
 			return CutLevel2;
 		if (setlvlnum == SL_VILEBETRAYER)
@@ -402,6 +407,14 @@ void LoadCutsceneBackground(interface_mode uMsg)
 		celPath = "gendata\\cut3";
 		palPath = "gendata\\cut3.pal";
 		pngBase = "gendata\\cutdcave";
+		progress_id = 1;
+		break;
+	case CutFrost:
+	case CutFrostRiver:
+		ArtCutsceneWidescreen = LoadOptionalClx("gendata\\cut3w.clx");
+		celPath = "gendata\\cut3";
+		palPath = "gendata\\cut3.pal";
+		pngBase = PickCutscene(uMsg) == CutFrost ? "gendata\\cutfrost" : "gendata\\cutfriver";
 		progress_id = 1;
 		break;
 	}

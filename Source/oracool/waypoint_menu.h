@@ -125,8 +125,11 @@ constexpr int WoodsWaypointCount = 4;
 /** @brief The desert's, after the woods' (2026-10-16): list indices 29-32, in the hero file's 64-bit chunk (HeroChunkWaypoints64). */
 constexpr int FirstDesertWaypoint = FirstWoodsWaypoint + WoodsWaypointCount;
 constexpr int DesertWaypointCount = 4;
+/** @brief The Frost Caves', after the desert's (2026-10-17): list indices 33-36, in the same 64-bit chunk. */
+constexpr int FirstFrostWaypoint = FirstDesertWaypoint + DesertWaypointCount;
+constexpr int FrostWaypointCount = 4;
 /** @brief One past the last waypoint index any list shows. */
-constexpr int OrclWaypointEnd = FirstDesertWaypoint + DesertWaypointCount;
+constexpr int OrclWaypointEnd = FirstFrostWaypoint + FrostWaypointCount;
 
 /**
  * @brief Marks waypoint list entry/dungeon level `index` unlocked on the current difficulty

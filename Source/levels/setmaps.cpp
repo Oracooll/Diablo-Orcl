@@ -59,6 +59,15 @@ const char *const QuestLevelNames[] = {
 	N_("The Sand Warrens"),
 	N_("The Buried Halls"),
 	N_("The Buried Halls Depths"),
+	// The Frost Caves (oracool/woods.h, WoodsFloorName) and their frozen rivers (WoodsCaveName).
+	N_("The Rime Gate"),
+	N_("The Glacial Hollows"),
+	N_("The Frostbound Deep"),
+	N_("The Throne of Winter"),
+	N_("The Frozen Stream"),
+	N_("Black Ice Run"),
+	N_("The Drowned Hall"),
+	N_("The Still River"),
 };
 static_assert(sizeof(QuestLevelNames) / sizeof(QuestLevelNames[0]) == SL_LAST + 1,
     "QuestLevelNames needs one row per _setlevels id - the automap header reads it by setlvlnum");
@@ -206,6 +215,10 @@ void LoadSetMap()
 	case SL_ORCL_DESERT_2:
 	case SL_ORCL_DESERT_3:
 	case SL_ORCL_DESERT_4:
+	case SL_ORCL_FROST_1:
+	case SL_ORCL_FROST_2:
+	case SL_ORCL_FROST_3:
+	case SL_ORCL_FROST_4:
 		// Generated, not loaded (oracool/woods.h): the floor from this game's seed for it.
 		oracool::BuildWoodsLevel(/*fresh=*/MyPlayer == nullptr || !MyPlayer->_pSLvlVisited[setlvlnum]);
 		break;
@@ -215,6 +228,10 @@ void LoadSetMap()
 	case SL_ORCL_DESERT_CAVE_1:
 	case SL_ORCL_DESERT_CAVE_2:
 	case SL_ORCL_DESERT_CAVE_3:
+	case SL_ORCL_FROST_RIVER_1:
+	case SL_ORCL_FROST_RIVER_2:
+	case SL_ORCL_FROST_RIVER_3:
+	case SL_ORCL_FROST_RIVER_4:
 		oracool::BuildWoodsCaveLevel(/*fresh=*/MyPlayer == nullptr || !MyPlayer->_pSLvlVisited[setlvlnum]);
 		break;
 	case SL_NONE:
