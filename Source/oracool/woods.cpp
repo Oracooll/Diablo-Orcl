@@ -233,6 +233,17 @@ enum TreeKind : uint8_t {
 	ChainsRock,
 	CorpseKneeling,
 	RuneStone,
+	// The Throne of Winter's (RfA-82): its ice cathedral.
+	CathedralPillar,
+	CathedralPillarBroken,
+	ThroneFrozen,
+	ArchIce,
+	// The rest of it (RfA-82b): the arena's ring stones, the frozen braziers, the old king.
+	RingStoneA,
+	RingStoneB,
+	RingStoneC,
+	BrazierFrozen,
+	KingStatue,
 	Blocker,
 	TreeKindCount,
 };
@@ -2144,13 +2155,51 @@ void GenerateFrost(uint32_t seed)
 		place(0xF2A4U, 2, { { { 0, 0 }, CrystalCluster } });
 		place(0xF2A5U, 2, { { { 0, 0 }, IcePillar } });
 		break;
-	default:
-		// The Throne of Winter: its pillared halls (the throne, its ring and its king's statue with RfA-82).
-		for (uint32_t k = 0; k < 6; k++)
+	default: {
+		// The Throne of Winter's hall (RfA-82): the frozen throne at its head (up the screen, -x -y), two rows of carved pillars, some
+		// broken, leading down to it from the arch at its foot; its floor the carved paving. The boss waits before the throne
+		// (WoodsBossSpot, ArenaCentre).
+		if (const std::optional<Point> hall = FindFrostSpot(seed, 0xF3C1U, 6, taken, 16)) {
+			taken.push_back(*hall);
+			ArenaCentre = *hall;
+			for (int dy = -6; dy <= 6; dy++)
+				for (int dx = -6; dx <= 6; dx++) {
+					const Point q = *hall + Displacement { dx, dy };
+					if (Inside(q) && Ground[q.x][q.y] != Path && dx * dx + dy * dy <= 40)
+						Ground[q.x][q.y] = Paving;
+				}
+			const auto stand = [&](Displacement d, TreeKind kind) {
+				const Point q = *hall + d;
+				if (Inside(q) && Tree[q.x][q.y] == NoTree && Ground[q.x][q.y] != Path)
+					Tree[q.x][q.y] = kind;
+			};
+			// The hall runs along x, down and to the right on the screen, so its rows of pillars stand across the picture (along the
+			// screen's vertical, the first render, each side's stood in one line and read as a single column): the throne at its head
+			// with a frozen brazier either side, the boss's ring of six stones in its middle (RfA-82b), the pillars down both sides, the
+			// arch at its foot and the old king's statue by it.
+			stand({ -5, 0 }, ThroneFrozen);
+			stand({ -5, -2 }, BrazierFrozen);
+			stand({ -5, 2 }, BrazierFrozen);
+			constexpr Displacement Ring[6] = { { 3, 2 }, { 0, 3 }, { -3, 2 }, { -3, -2 }, { 0, -3 }, { 3, -2 } };
+			for (int k = 0; k < 6; k++) {
+				const uint32_t h = Hash(seed, 0xF3C3U, static_cast<uint32_t>(k));
+				stand(Ring[k], k == static_cast<int>(h % 6U) ? RingStoneC : (k & 1) != 0 ? RingStoneB : RingStoneA);
+			}
+			for (int k = 0; k < 3; k++) {
+				const int along = -4 + 4 * k;
+				const bool broken = Unit(Hash(seed, 0xF3C2U, static_cast<uint32_t>(k))) < 0.34F;
+				stand({ along, 5 }, broken ? CathedralPillarBroken : CathedralPillar);
+				stand({ along, -5 }, CathedralPillar);
+			}
+			stand({ 2, -5 }, KingStatue);
+			stand({ 6, 0 }, ArchIce);
+		}
+		for (uint32_t k = 0; k < 4; k++)
 			place(0xF3A1U + k, 2, { { { 0, 0 }, IcePillar } });
 		place(0xF3B1U, 2, { { { 0, 0 }, BarbarianInIce } });
 		place(0xF3B2U, 2, { { { 0, 0 }, CrystalCluster } });
 		break;
+	}
 	}
 
 	// The clutter on open floor (RfA-78b, 80b), each floor its own mix.
@@ -2179,7 +2228,7 @@ void GenerateFrost(uint32_t seed)
 	for (int y = Lo; y <= Hi; y++)
 		for (int x = Lo; x <= Hi; x++)
 			if (Tree[x][y] == BeastInIce || Tree[x][y] == FrozenWaterfall || Tree[x][y] == CatapultBroken || Tree[x][y] == BarricadeStakes
-			    || Tree[x][y] == SledFrozen || Tree[x][y] == CrevasseLip || Tree[x][y] == BurialMound)
+			    || Tree[x][y] == SledFrozen || Tree[x][y] == CrevasseLip || Tree[x][y] == BurialMound || Tree[x][y] == ThroneFrozen || Tree[x][y] == ArchIce)
 				BlockFootprint({ x, y });
 	SealUnreachable();
 
@@ -2609,6 +2658,15 @@ constexpr TreeFile TreeFiles[TreeKindCount] = {
 	{ "levels\\frost\\chains_rock.png", 64, 180, 32, false, OrclArea::Frost },
 	{ "levels\\frost\\corpse_kneeling.png", 64, 180, 32, false, OrclArea::Frost },
 	{ "levels\\frost\\rune_stone.png", 56, 244, 36, false, OrclArea::Frost },
+	{ "levels\\frost\\cathedral_pillar.png", 80, 436, 40, false, OrclArea::Frost },
+	{ "levels\\frost\\cathedral_pillar_broken.png", 80, 244, 40, false, OrclArea::Frost },
+	{ "levels\\frost\\throne_frozen.png", 160, 340, 44, false, OrclArea::Frost },
+	{ "levels\\frost\\arch_ice.png", 144, 340, 40, false, OrclArea::Frost },
+	{ "levels\\frost\\ring_stone_a.png", 64, 212, 34, false, OrclArea::Frost },
+	{ "levels\\frost\\ring_stone_b.png", 64, 212, 34, false, OrclArea::Frost },
+	{ "levels\\frost\\ring_stone_c.png", 64, 212, 34, false, OrclArea::Frost },
+	{ "levels\\frost\\brazier_frozen.png", 48, 180, 32, false, OrclArea::Frost },
+	{ "levels\\frost\\king_statue.png", 80, 340, 40, false, OrclArea::Frost },
 	{ nullptr, 0, 0, 0, false, OrclArea::Desert }, // Blocker: never drawn
 };
 
@@ -4121,6 +4179,11 @@ bool FrostBuilt()
 	return Frost;
 }
 
+int WoodsKindAtForTest(Point tile)
+{
+	return InDungeonBounds(tile) ? Tree[tile.x][tile.y] : 0;
+}
+
 int FrostLightCountForTest()
 {
 	return static_cast<int>(FrostLights.size());
@@ -4393,7 +4456,10 @@ std::optional<Point> WoodsBossSpot()
 	const int fenceIn = Lo + 2 * (RingLo + 1);    // the first tile inside the ring
 	const int fenceOut = Lo + 2 * RingHi - 1;     // the last
 	// In the desert's Tomb, before the Sun-Eater's altar (RfA-74), facing it from the arena's open front.
-	const Point aim = Desert && ArenaCentre != Point {} ? ArenaCentre + Displacement { 2, 2 } : WayOn + Displacement { 6, 0 };
+	// The Throne of Winter's boss before the throne, between the rows (RfA-82).
+	const Point aim = Desert && ArenaCentre != Point {} ? ArenaCentre + Displacement { 2, 2 }
+	    : Frost && ArenaCentre != Point {}          ? ArenaCentre + Displacement { -1, 0 }
+	                                                : WayOn + Displacement { 6, 0 };
 	for (int radius = 0; radius <= 40; radius++) {
 		for (int dx = -radius; dx <= radius; dx++) {
 			for (int dy = -radius; dy <= radius; dy++) {

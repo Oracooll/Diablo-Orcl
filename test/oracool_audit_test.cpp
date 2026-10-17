@@ -21065,6 +21065,17 @@ TEST(OracoolAudit, FrostCavesAreWalkableCaverns)
 			EXPECT_LT(open, inside * 3 / 5) << at << ": too much open floor for a cave";
 			if (floor == 1)
 				EXPECT_GT(oracool::FrostLightCountForTest(), 0) << at << ": the Hollows' crystals light nothing";
+			// The Throne of Winter's hall (RfA-82): its throne stands, and the floor before it can be reached.
+			if (floor == 3) {
+				const Point hall = oracool::DesertArenaForTest();
+				ASSERT_NE(hall, Point(0, 0)) << at << ": no throne hall";
+				bool before = false;
+				for (const Displacement d : { Displacement { -2, -2 }, Displacement { -1, -1 }, Displacement { 0, 0 }, Displacement { 1, 1 } })
+					before = before || walked(hall + d);
+				EXPECT_TRUE(before) << at << ": the floor before the throne cannot be reached";
+			} else {
+				EXPECT_EQ(oracool::DesertArenaForTest(), Point(0, 0)) << at << ": a throne hall off the Throne of Winter";
+			}
 		}
 	}
 	oracool::SetWoodsCaveMouthFloorForTest(-1);
@@ -21127,6 +21138,8 @@ TEST(OracoolPreview, DISABLED_FrostFloors)
 		std::vector<std::pair<std::string, Point>> places { { "arrival", oracool::WoodsArrival() + Displacement { -6, 2 } }, { "middle", middle } };
 		if (entrance != Point(0, 0))
 			places.emplace_back("hole", entrance);
+		if (const Point hall = oracool::DesertArenaForTest(); hall != Point(0, 0))
+			places.emplace_back("hall", hall);
 		for (const auto &[name, centre] : places) {
 			OwnedSurface view = OwnedSurface::Rgb(1280, 720);
 			const auto screenOf = [&](Point tile) {

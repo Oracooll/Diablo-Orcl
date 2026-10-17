@@ -157,6 +157,8 @@ bool DesertBuilt();
 bool FrostBuilt();
 /** @brief Test hook: the Frost Caves floor last built's lights (its crystals). */
 int FrostLightCountForTest();
+/** @brief Test hook: what stands on @p tile, as the generator's kind number (0 none). */
+int WoodsKindAtForTest(Point tile);
 
 /** @brief The cave mouth's tiles are Tristram's own cels, drawn by DrawCell even on the painted look. */
 bool WoodsTileUsesCels(Point tile);

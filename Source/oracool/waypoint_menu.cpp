@@ -93,8 +93,19 @@ string_view WaypointName(int level)
 	static std::array<std::string, WaypointLevelCount> names;
 	if (names[0].empty()) {
 		names[0] = WaypointRegionName(0);
+		// Each dungeon level its own name (user, 2026-10-17: "suggest specific names for all WPs - vanilla and hellfire as well",
+		// then "WP names approved"), in place of its region and number.
+		constexpr const char *DungeonNames[] = {
+			"The Sanctum Stair", "Halls of the Slain", "The King's Crypt Gate", "The Lower Nave",
+			"The Forgotten Vaults", "The Bone Labyrinth", "The Charnel Deeps", "The Halls of Madness",
+			"The Fire Caves", "The Hollow Mines", "The Lava Run", "The Burning Deep",
+			"The Gates of Hell", "The Burning Halls", "The Black Altar", "The Throne of Terror",
+			"The Festering Nest", "The Brood Halls", "The Swarm Deeps", "The Defiler's Lair",
+			"The Hallowed Crypt", "The Sunken Tombs", "The Ossuarium", "Na-Krul's Prison",
+		};
+		static_assert(std::size(DungeonNames) == static_cast<size_t>(FirstWoodsWaypoint) - 1, "a name for every dungeon level");
 		for (size_t i = 1; i < static_cast<size_t>(FirstWoodsWaypoint); i++)
-			names[i] = StrCat(WaypointRegionName(static_cast<int>(i)), " Level ", AreaLevel(static_cast<int>(i), DIFF_NORMAL));
+			names[i] = DungeonNames[i - 1];
 		// The woods' floors by name: their depth is the hero's, fixed per game, so a number in the name would lie.
 		for (int i = 0; i < WoodsWaypointCount; i++)
 			names[static_cast<size_t>(FirstWoodsWaypoint + i)] = WoodsFloorName(static_cast<_setlevels>(SL_FIRST_WOODS + i));

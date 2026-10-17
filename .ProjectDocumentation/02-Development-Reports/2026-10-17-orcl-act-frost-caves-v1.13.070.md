@@ -68,3 +68,21 @@ User, 2026-10-17: "start the frost caves engine work while waiting". Plan: `.Pro
 - **The crystals' glow:** clusters, small crystals and spires each get a slow cold blue shine in the glow pass, on top of their `AddLight`.
 - **A bug caught in the render:** `Unit()` reads the low 24 bits, so `Unit(h >> 12)` never passes 0.0625, and every Deep wall had become a wall of faces. The faces now roll their own hash. The `h >> 8` uses elsewhere keep 24 bits and are fine.
 - **Tests:** full suite 1072 of 1072.
+
+## v1.13.073: the Throne of Winter's hall, and every waypoint named
+- **The Throne of Winter's hall (RfA-82, 82b):**
+  - **Layout:** a 13 x 13 open spot of carved paving (`ArenaCentre`), running along +x, down and to the right on screen.
+  - **The pieces:**
+    - the frozen throne at its head, with a frozen brazier either side;
+    - a ring of six rune stones in its middle (three kinds, one cracked);
+    - three pillars down each side, some broken;
+    - the old king's statue among them;
+    - the ice arch at its foot.
+  - **The boss:** waits before the throne (`WoodsBossSpot`, hall - (1, 0)).
+  - **Footprints:** the throne and the arch block theirs.
+  - **The first layout** ran the hall along the screen's vertical, and each side's three pillars stood in one line and read as a single column.
+- **Waypoint names:** every Diablo and Hellfire dungeon waypoint has its own name, replacing "Region Level N" (the user approved the suggested names, 2026-10-17). For example: The Sanctum Stair, The Bone Labyrinth, The Lava Run, The Throne of Terror, The Defiler's Lair, Na-Krul's Prison.
+- **Tests:**
+  - `FrostCavesAreWalkableCaverns`: the hall is on the Throne of Winter alone, and the floor before the throne can be reached.
+  - The preview renders the hall.
+  - Full suite 1072 of 1072.
