@@ -22723,7 +22723,7 @@ TEST(OracoolPreview, DISABLED_Rogue375CardStrips)
 // with six versions of them, Guardian bosses up to 250% (Q2), a boss now and then off his home floors (Q3).
 TEST(OracoolRiftBosses, TheRosterKeepsTheFourFacesAndThePagesThirtyTwo)
 {
-	ASSERT_EQ(oracool::RiftBossCount(), 42u) << "4 faces of old + 6 versions + the page's 32";
+	ASSERT_EQ(oracool::RiftBossCount(), 60u) << "4 faces of old + 6 versions + the page's 32 + Diablo II's and III's 18";
 	const oracool::RiftGuardianType faces[] = { oracool::RiftGuardianType::SkeletonKing, oracool::RiftGuardianType::Butcher,
 		oracool::RiftGuardianType::Diablo, oracool::RiftGuardianType::NaKrul };
 	const _monster_id faceTypes[] = { MT_SKING, MT_CLEAVER, MT_DIABLO, MT_NAKRUL };
@@ -22777,8 +22777,11 @@ TEST(OracoolRiftBosses, TheRosterKeepsTheFourFacesAndThePagesThirtyTwo)
 			EXPECT_NE(def.escort, MT_INVALID) << "it calls nobody";
 	}
 	EXPECT_EQ(versions, 6) << "Q1: six versions of the four faces";
-	EXPECT_EQ(nephalem, 2 + 20) << "two versions and the page's twenty";
-	EXPECT_EQ(guardian, 4 + 12) << "four versions and the page's twelve";
+	EXPECT_EQ(nephalem, 2 + 20 + 8) << "two versions, the page's twenty, Diablo II's and III's eight";
+	EXPECT_EQ(guardian, 4 + 12 + 10) << "four versions, the page's twelve, Diablo II's and III's ten";
+	// Diablo II's and III's (2026-10-17): every one findable by name, Mephisto among them.
+	for (const char *name : { "Andariel", "Mephisto", "Lilith", "Azmodan", "Pindleskin", "Diablo, Lord of Terror" })
+		EXPECT_TRUE(oracool::FindRiftBoss(name).has_value()) << name;
 }
 
 TEST(OracoolRiftBosses, EveryKindMeetsSomebodyAtEveryRungAndTheBandsHold)
@@ -22813,8 +22816,8 @@ TEST(OracoolRiftBosses, AForcedBossIsDrawnAtHomeAndNamedRows)
 	ASSERT_TRUE(kharzug.has_value());
 	EXPECT_STREQ(oracool::RiftBossAt(*kharzug).name, "Kharzug the Ram");
 	EXPECT_EQ(oracool::FindRiftBoss("1"), std::optional<size_t>(0)) << "numbers are 1-based";
-	EXPECT_EQ(oracool::FindRiftBoss("42"), std::optional<size_t>(41));
-	EXPECT_FALSE(oracool::FindRiftBoss("43").has_value());
+	EXPECT_EQ(oracool::FindRiftBoss("60"), std::optional<size_t>(59));
+	EXPECT_FALSE(oracool::FindRiftBoss("61").has_value());
 	EXPECT_FALSE(oracool::FindRiftBoss("nobody at all").has_value());
 	EXPECT_EQ(oracool::FindRiftBoss("skeleton king"), std::optional<size_t>(0)) << "a face of old by its unique's name";
 
