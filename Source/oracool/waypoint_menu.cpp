@@ -819,7 +819,10 @@ void DrawWaypointMenu(const Surface &out)
 		// the plain one, and dark blue made it the loud one; the shadow added the next version is
 		// what white was missing all along, since a pale glyph on grey loses its edges rather than
 		// its brightness.
-		const UiFlags color = unlocked ? UiFlags::ColorWhite : (sealed ? UiFlags::ColorWhitegold : UiFlags::ColorRed);
+		// The 22px face's own white, yellow and red (RTM dev note, 2026-10-20: "reduce font size of wp list to fit wp names" -
+		// the Orcl Act's names reach 275px at 24, past the 238px column; at 22 the widest, "Tomb of the Sun-Eater", is 223).
+		// The plain colours below are no-ops on this face (the 2026-08-30 screenshot); the dialog tables are its own.
+		const UiFlags color = unlocked ? UiFlags::ColorDialogWhite : (sealed ? UiFlags::ColorDialogYellow : UiFlags::ColorDialogRed);
 
 		// No outline on the rows - it was there to hold contrast against the stone panel, and that
 		// panel is gone; over the half-transparent fill it only thickened the glyphs. The title
@@ -843,7 +846,7 @@ void DrawWaypointMenu(const Surface &out)
 		// row used to wear was dropped for thickening the letters; a shadow sits under them instead
 		// of around them, so it buys the contrast without the weight.
 		DrawString(content, WaypointName(level), textArea,
-		    { color | UiFlags::FontSize24 | UiFlags::VerticalCenter | UiFlags::Shadowed });
+		    { color | UiFlags::FontSizeDialog | UiFlags::VerticalCenter | UiFlags::Shadowed });
 	}
 }
 

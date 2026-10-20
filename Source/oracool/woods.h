@@ -26,6 +26,7 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -216,6 +217,17 @@ void RepaintWoodsCelGround(const Surface &out, Point tile, Point target, int lig
  * @return false off the mouth
  */
 bool WoodsCaveMouthHover(Point tile, Point &entrance, const char *&text);
+/**
+ * @brief The hover over a way out of Tristram or a woods floor at @p tile - a gate, the road back, the way on, the cave mouth - lit up
+ * while the cursor is on it (RTM dev note, 2026-10-20): its entrance (the click walks there) and where it leads ("To the Salt Road").
+ * @return false off them
+ */
+bool WoodsExitHover(Point tile, Point &entrance, std::string &text);
+/** @brief Forgets last frame's hovered way out (every cursor pass, before the hovers are asked). */
+void ClearWoodsExitHover();
+/** @brief The ways out of the floor the hero stands on, for the maps (RTM dev note, 2026-10-20: "accesses to other areas to be marked
+ * on the minimap"): Tristram's three gates, a woods floor's open roads and cave mouth, an Orcl cave's stairs. */
+std::vector<Point> WoodsExitMarkers();
 
 /**
  * @brief The rung (1-16 inside the difficulty's block) the current woods floor's monsters and loot stand on: the hero's level

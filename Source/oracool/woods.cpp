@@ -3652,6 +3652,9 @@ bool WispLives(const Wisp &wisp)
 	return object._otype == OBJ_CHEST2 && object._oSelFlag != 0;
 }
 
+/** @brief The light on the way out under the cursor; false when there is none (defined with the ways out, below). */
+bool HoveredExitLamp(WoodsLamp &lamp);
+
 } // namespace
 
 const std::vector<WoodsLamp> &WoodsNightLamps()
@@ -3660,6 +3663,9 @@ const std::vector<WoodsLamp> &WoodsNightLamps()
 	lamps.clear();
 	if (leveltype != DTYPE_WOODS || !setlevel || !IsOutdoorActLevel(setlvlnum))
 		return lamps;
+	// The way out under the cursor, lit (RTM dev note, 2026-10-20).
+	if (WoodsLamp lamp {}; HoveredExitLamp(lamp))
+		lamps.push_back(lamp);
 	// The cottages' lamps behind their doors, and their candle stands outside.
 	for (int i = 0; i < HouseCount; i++) {
 		const House &house = Houses[i];
@@ -4134,7 +4140,107 @@ bool OnFrostGate(Point tile)
 /** @brief Whether the hero last stood in the woods' way-on strip, so its message shows once per visit to it. */
 bool AtWayOnBefore = false;
 
+/** @brief A way out where the hero stands: its glow's centre and reach, whether it is open, the tile a click walks to, where it goes. */
+struct ExitMark {
+	float x, y, radius;
+	bool open;
+	Point entrance;
+	_setlevels to; // SL_NONE: back to Tristram, or nowhere (the last floor's way on)
+	bool cave;
+};
+
+/** @brief "The Salt Road" as "the Salt Road", to follow "To". */
+std::string AfterTo(const char *name)
+{
+	std::string text = name;
+	if (text.rfind("The ", 0) == 0)
+		text[0] = 't';
+	return text;
+}
+
+/** @brief The ways out of the floor the hero stands on: Tristram's three gates, or a woods floor's road back, way on and cave mouth. */
+int ExitMarksHere(ExitMark (&marks)[3])
+{
+	int count = 0;
+	if (leveltype == DTYPE_TOWN) {
+		marks[count++] = { (GateX0 + GateX1) * 0.5F, (GateY0 + GateY1) * 0.5F, 2.6F, true, { (GateX0 + GateX1) / 2, GateY0 }, SL_ORCL_WOODS_1, false };
+		marks[count++] = { (DesertGateX0 + DesertGateX1) * 0.5F, (DesertGateY0 + DesertGateY1) * 0.5F, 2.6F, true, { (DesertGateX0 + DesertGateX1) / 2, DesertGateY1 }, SL_ORCL_DESERT_1, false };
+		marks[count++] = { (FrostGateX0 + FrostGateX1) * 0.5F, (FrostGateY0 + FrostGateY1) * 0.5F, 2.6F, true, { FrostGateX0, (FrostGateY0 + FrostGateY1) / 2 }, SL_ORCL_FROST_1, false };
+	} else if (leveltype == DTYPE_WOODS && setlevel && IsOutdoorActLevel(setlvlnum)) {
+		const OrclArea area = AreaOfLevel(setlvlnum);
+		const int floor = FloorIndex(setlvlnum);
+		const bool lastFloor = floor == WoodsFloors - 1;
+		// The road back, the way on to the next floor (amber on the last, where it ends), the cave's entrance.
+		marks[count++] = { static_cast<float>(Hi) - 0.5F, static_cast<float>(Arrival.y), 2.4F, true, { Hi - 1, Arrival.y },
+			floor == 0 ? SL_NONE : OutdoorFloorLevel(area, floor - 1), false };
+		marks[count++] = { static_cast<float>(Lo) + 0.5F, static_cast<float>(WayOn.y), 2.4F, !lastFloor, { Lo + 1, WayOn.y },
+			lastFloor ? SL_NONE : OutdoorFloorLevel(area, floor + 1), false };
+		if (MouthOnFloor)
+			marks[count++] = { static_cast<float>(MouthEntrance.x), static_cast<float>(MouthEntrance.y), 1.4F, true, MouthEntrance,
+				WoodsCaveOnFloor(floor, area), true };
+	}
+	return count;
+}
+
+/** @brief The way out the cursor is on (RTM dev note, 2026-10-20: "when i hover over entrance to another area light it up"), or -1. */
+int HoveredExit = -1;
+
+bool HoveredExitLamp(WoodsLamp &lamp)
+{
+	ExitMark marks[3];
+	if (HoveredExit < 0 || HoveredExit >= ExitMarksHere(marks))
+		return false;
+	const ExitMark &mark = marks[HoveredExit];
+	lamp = { mark.x, mark.y, 4.5F, 1.0F, mark.open ? 0xA8FF9CU : 0xFFC060U };
+	return true;
+}
+
 } // namespace
+
+void ClearWoodsExitHover()
+{
+	HoveredExit = -1;
+}
+
+bool WoodsExitHover(Point tile, Point &entrance, std::string &text)
+{
+	ExitMark marks[3];
+	const int count = ExitMarksHere(marks);
+	for (int m = 0; m < count; m++) {
+		const float dx = static_cast<float>(tile.x) - marks[m].x, dy = static_cast<float>(tile.y) - marks[m].y;
+		if (dx * dx + dy * dy > marks[m].radius * marks[m].radius)
+			continue;
+		HoveredExit = m;
+		entrance = marks[m].entrance;
+		if (marks[m].cave)
+			text = std::string("Down to ") + WoodsCaveName(marks[m].to);
+		else if (marks[m].to != SL_NONE)
+			text = "To " + AfterTo(WoodsFloorName(marks[m].to));
+		else if (marks[m].open)
+			text = "To Tristram";
+		else
+			text = "The way ends here";
+		return true;
+	}
+	return false;
+}
+
+std::vector<Point> WoodsExitMarkers()
+{
+	std::vector<Point> markers;
+	if (setlevel && IsActCaveLevel(setlvlnum)) {
+		for (int j = 0; j < numtrigs; j++)
+			markers.push_back(trigs[j].position);
+		return markers;
+	}
+	ExitMark marks[3];
+	const int count = ExitMarksHere(marks);
+	for (int m = 0; m < count; m++) {
+		if (marks[m].open)
+			markers.push_back(marks[m].entrance);
+	}
+	return markers;
+}
 
 Point WoodsTownReturnTile()
 {
@@ -6088,24 +6194,8 @@ void DrawWoodsGateTint(const Surface &out, Point tile, Point target)
 		return;
 	// The marks: a soft round glow over each way out, centred on its strip, fading to nothing by its radius (the seam survey,
 	// 2026-10-14: the tinted strips were flat blocks of tiles with straight edges). Each tile nearest one takes its share.
-	struct Mark {
-		float x, y, radius;
-		bool open;
-	};
-	Mark marks[3];
-	int markCount = 0;
-	if (leveltype == DTYPE_TOWN) {
-		marks[markCount++] = { (GateX0 + GateX1) * 0.5F, (GateY0 + GateY1) * 0.5F, 2.6F, true };
-		marks[markCount++] = { (DesertGateX0 + DesertGateX1) * 0.5F, (DesertGateY0 + DesertGateY1) * 0.5F, 2.6F, true };
-		marks[markCount++] = { (FrostGateX0 + FrostGateX1) * 0.5F, (FrostGateY0 + FrostGateY1) * 0.5F, 2.6F, true };
-	} else if (leveltype == DTYPE_WOODS && setlevel) {
-		const bool lastFloor = FloorIndex(setlvlnum) == WoodsFloors - 1;
-		// The road back, the way on to the next floor (amber on the last, where it ends), the cave's entrance.
-		marks[markCount++] = { static_cast<float>(Hi) - 0.5F, static_cast<float>(Arrival.y), 2.4F, true };
-		marks[markCount++] = { static_cast<float>(Lo) + 0.5F, static_cast<float>(WayOn.y), 2.4F, !lastFloor };
-		if (MouthOnFloor)
-			marks[markCount++] = { static_cast<float>(MouthEntrance.x), static_cast<float>(MouthEntrance.y), 1.4F, true };
-	}
+	ExitMark marks[3];
+	const int markCount = ExitMarksHere(marks);
 	int nearest = -1;
 	for (int m = 0; m < markCount; m++) {
 		const float ddx = static_cast<float>(tile.x) - marks[m].x, ddy = static_cast<float>(tile.y) - marks[m].y;
@@ -6114,14 +6204,16 @@ void DrawWoodsGateTint(const Surface &out, Point tile, Point target)
 	}
 	if (nearest < 0)
 		return;
-	const Mark mark = marks[nearest];
+	const ExitMark mark = marks[nearest];
 	const bool open = mark.open;
+	const bool hovered = nearest == HoveredExit;
 	// Green for a road you can take, amber for one not open yet; a slow pulse, a little stronger toward the tile's centre.
 	const int tr = open ? 120 : 236;
 	const int tg = open ? 255 : 170;
 	const int tb = open ? 110 : 60;
 	const float pulse = 0.5F + 0.5F * std::sin(static_cast<float>(SDL_GetTicks() % 100000U) * 0.004F);
-	const int base = static_cast<int>((open ? 70.0F : 55.0F) + 50.0F * pulse); // of 256
+	// Lit up while the cursor is on it (RTM dev note, 2026-10-20): steady and twice as strong.
+	const int base = hovered ? 210 : static_cast<int>((open ? 70.0F : 55.0F) + 50.0F * pulse); // of 256
 	for (int k = 0; k < 31; k++) {
 		const int y = target.y - k;
 		if (y < 0 || y >= out.h())

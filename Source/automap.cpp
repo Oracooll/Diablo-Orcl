@@ -1113,6 +1113,13 @@ void DrawAutomapWaypointsAndPortals(const Surface &out, Point screenCenter, cons
 		const Point screen = AutomapMarkerScreenPosition(screenCenter, myPlayerOffset, entry - Displacement { 1, 1 });
 		FillRect(out, screen.x - MarkerSize / 2, screen.y - MarkerSize / 2, MarkerSize, MarkerSize, static_cast<uint8_t>(MiniMapColorsRiftMonument));
 	}
+
+	// The Orcl Act's ways out in the stairs' red (RTM dev note, 2026-10-20: "accesses to other areas to be marked on the minimap
+	// somehow"): Tristram's three gates, a woods floor's roads and cave mouth, an Orcl cave's stairs.
+	for (const Point exit : oracool::WoodsExitMarkers()) {
+		const Point screen = AutomapMarkerScreenPosition(screenCenter, myPlayerOffset, exit);
+		FillRect(out, screen.x - MarkerSize / 2, screen.y - MarkerSize / 2, MarkerSize, MarkerSize, static_cast<uint8_t>(MiniMapColorsStairs));
+	}
 }
 
 /**

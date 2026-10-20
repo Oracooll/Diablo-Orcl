@@ -495,16 +495,31 @@ bool ForceL2Trig()
 	return false;
 }
 
+/** @brief A way out of Tristram or a woods floor (oracool/woods.h WoodsExitHover): where it leads, lit, the click walks onto it. */
+bool ForceOrclExitTrig()
+{
+	Point entrance;
+	std::string text;
+	if (!oracool::WoodsExitHover(cursPosition, entrance, text))
+		return false;
+	InfoString = std::move(text);
+	cursPosition = entrance;
+	return true;
+}
+
 /** @brief The cave mouth on a woods floor (oracool/woods.h): "Down to <cave>", the click walks to its entrance. */
 bool ForceWoodsTrig()
 {
 	Point entrance;
 	const char *text = nullptr;
-	if (!oracool::WoodsCaveMouthHover(cursPosition, entrance, text))
-		return false;
-	InfoString = std::string(text);
-	cursPosition = entrance;
-	return true;
+	if (oracool::WoodsCaveMouthHover(cursPosition, entrance, text)) {
+		InfoString = std::string(text);
+		std::string lit;
+		oracool::WoodsExitHover(entrance, entrance, lit); // the mouth lights up with the others
+		cursPosition = entrance;
+		return true;
+	}
+	return ForceOrclExitTrig();
 }
 
 /** @brief An Orcl Act cave's stairs (oracool/woods_caves.h): ForceL3Trig's tiles, with where they lead by name. */
@@ -851,6 +866,7 @@ bool ForceArenaTrig()
 void CheckTrigForce()
 {
 	trigflag = false;
+	oracool::ClearWoodsExitHover();
 
 	if (ControlMode == ControlTypes::KeyboardAndMouse && GetMainPanel().contains(MousePosition)) {
 		return;
@@ -859,7 +875,7 @@ void CheckTrigForce()
 	if (!setlevel) {
 		switch (leveltype) {
 		case DTYPE_TOWN:
-			trigflag = ForceTownTrig();
+			trigflag = ForceTownTrig() || ForceOrclExitTrig(); // and the Orcl Act's three gates
 			break;
 		case DTYPE_CATHEDRAL:
 			trigflag = ForceL1Trig();

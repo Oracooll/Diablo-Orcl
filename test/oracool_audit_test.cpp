@@ -23520,3 +23520,27 @@ TEST(OracoolDev1057, EarthquakeWithNoFoeInReachIsNotStarted)
 	leveltype = savedType;
 	ActiveMonsterCount = savedCount;
 }
+
+// The Orcl Act's ways out of Tristram (RTM dev notes, 2026-10-20: "when i hover over entrance to another area light it up";
+// "accesses to other areas to be marked on the minimap"): each gate names where it leads, and each is on the map.
+TEST(OracoolWoods, TristramsGatesNameWhereTheyLeadAndAreOnTheMap)
+{
+	const dungeon_type savedType = leveltype;
+	const bool savedSetlevel = setlevel;
+	leveltype = DTYPE_TOWN;
+	setlevel = false;
+	Point entrance;
+	std::string text;
+	ASSERT_TRUE(oracool::WoodsExitHover({ 57, 94 }, entrance, text));
+	EXPECT_EQ(text, "To the Greywood Verge");
+	EXPECT_EQ(entrance, Point(57, 94));
+	ASSERT_TRUE(oracool::WoodsExitHover({ 73, 11 }, entrance, text));
+	EXPECT_EQ(text, "To the Salt Road");
+	ASSERT_TRUE(oracool::WoodsExitHover({ 83, 31 }, entrance, text));
+	EXPECT_EQ(text, "To the Rime Gate");
+	EXPECT_FALSE(oracool::WoodsExitHover({ 40, 40 }, entrance, text)) << "the square is no way out";
+	EXPECT_EQ(oracool::WoodsExitMarkers().size(), 3U);
+	oracool::ClearWoodsExitHover();
+	leveltype = savedType;
+	setlevel = savedSetlevel;
+}

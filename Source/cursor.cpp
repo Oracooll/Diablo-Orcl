@@ -39,6 +39,7 @@
 #include "inv.h"
 #include "panels/spell_book.hpp" // GetSpellBookPanelRect
 #include "levels/trigs.h"
+#include "oracool/woods.h" // ClearWoodsExitHover - the lit way out forgotten each pass
 #include "missiles.h"
 #include "options.h"
 #include "qol/itemlabels.h"
@@ -1047,6 +1048,7 @@ void CheckRportal()
 
 void CheckCursMove()
 {
+	oracool::ClearWoodsExitHover(); // asked again below when the cursor is free (CheckTrigForce)
 	if (IsItemLabelHighlighted()) {
 		// The label is all the cursor is on (round 41 audit): last frame's portal, towner, object and trigger hover stayed,
 		// and a pickup click beside the Rift Monument walked the hero into the rift - or talked to the towner under it.
