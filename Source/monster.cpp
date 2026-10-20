@@ -952,10 +952,14 @@ void PlaceWoodsMonsters()
 	// Champions and the Dread boss first, as a floor places them, for the scatter's cap to count them (InitMonsters).
 	PlaceLesserUniques();
 	// The last floor's boss is the user's (PlaceWoodsBoss); the caves keep the Dread boss of a dungeon floor.
+	// The boss's escort is scaled as it is called (SpawnRiftBossMinion): the pass at the end leaves it be (audit 6, 2026-10-20: it was
+	// brought to the rung twice).
+	const size_t bossAt = ActiveMonsterCount;
 	if (IsActBossLevel(setlvlnum))
 		PlaceWoodsBoss();
 	else
 		PlaceEndgameBoss();
+	const size_t escortEnd = IsActBossLevel(setlvlnum) ? ActiveMonsterCount : bossAt;
 	int numplacemonsters = na / (IsActCaveLevel(setlvlnum) ? 30 : 36) * *sgOptions.Oracool.monsterDensityPercent / 100;
 	const size_t scatterCap = MaxEnemyMonsters - 10;
 	if (ActiveMonsterCount >= scatterCap)
@@ -982,8 +986,11 @@ void PlaceWoodsMonsters()
 			DoUnVision(arrival + Displacement { s, t }, 15);
 	}
 	// Every kind brought up to the floor's rung, the boss to his (oracool::ScaleWoodsMonster).
-	for (size_t i = 0; i < ActiveMonsterCount; i++)
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		if (i > bossAt && i < escortEnd)
+			continue;
 		oracool::ScaleWoodsMonster(Monsters[ActiveMonsters[i]]);
+	}
 }
 
 void PlaceRiftMonsters()
