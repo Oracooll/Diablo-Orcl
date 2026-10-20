@@ -164,7 +164,27 @@ struct Run {
 	std::vector<Conjured> conjured;
 };
 
-Run RunState;
+/** The rift's boss's clocks; an Orcl Act boss has his own (ActBinding::run). */
+Run RiftRun;
+
+/** @brief Each Orcl Act area's bound boss, this game: his slot and type, the row as his area dresses it, and his own clocks. */
+struct ActBinding {
+	int slot = -1;
+	_monster_id type = MT_INVALID;
+	RiftBossDef def {};
+	/** His own (audit 6, 2026-10-20: one Run for the rift and the act let a Hell rift's damage overflow, a stone rest or spent
+	 * thresholds carry over onto the act boss fought next, and his onto the rift's). */
+	Run run;
+};
+std::array<ActBinding, 3> ActBindings {}; // by OrclArea: the woods, the desert, the Frost Caves
+
+/** @brief The clocks of the boss where the hero stands: an Orcl Act boss floor's, else the rift's. */
+Run &Cur()
+{
+	if (setlevel && IsActBossLevel(setlvlnum))
+		return ActBindings[static_cast<size_t>(AreaOfLevel(setlvlnum))].run;
+	return RiftRun;
+}
 /** The rows met lately, newest first, so the same face is not met twice running; survives a rift, not a game. */
 std::array<int, 3> LastMet { -1, -1, -1 };
 std::optional<size_t> Forced;
@@ -289,7 +309,7 @@ void FireSideShots(Monster &monster, MissileID type, int damage)
 int CountRaised()
 {
 	int alive = 0;
-	for (const int id : RunState.raised) {
+	for (const int id : Cur().raised) {
 		const Monster &raised = Monsters[id];
 		if (raised.hitPoints > 0 && raised.mode != MonsterMode::Death)
 			alive++;
@@ -302,13 +322,13 @@ void Raise(Monster &monster, _monster_id kind, int count)
 	const size_t typeIndex = LevelMonsterTypeIndexOf(kind);
 	if (typeIndex == LevelMonsterTypeCount)
 		return;
-	RunState.raised.erase(std::remove_if(RunState.raised.begin(), RunState.raised.end(), [](int id) {
+	Cur().raised.erase(std::remove_if(Cur().raised.begin(), Cur().raised.end(), [](int id) {
 		return Monsters[id].hitPoints <= 0 || Monsters[id].mode == MonsterMode::Death;
 	}),
-	    RunState.raised.end());
+	    Cur().raised.end());
 	for (int i = 0; i < count && CountRaised() < MaxRaised; i++) {
 		if (Monster *raised = SpawnRiftBossMinion(typeIndex, monster.position.tile, /*rise=*/true))
-			RunState.raised.push_back(static_cast<int>(raised->getId()));
+			Cur().raised.push_back(static_cast<int>(raised->getId()));
 	}
 }
 
@@ -331,18 +351,18 @@ void SplitOff(Monster &monster)
 			continue;
 		copy->maxHitPoints = std::max(monster.maxHitPoints * 15 / 100, 64);
 		copy->hitPoints = copy->maxHitPoints;
-		RunState.conjured.push_back({ static_cast<int>(copy->getId()), ConjuredTicks });
+		Cur().conjured.push_back({ static_cast<int>(copy->getId()), ConjuredTicks });
 	}
 }
 
 /** @brief Whether the boss has just fallen through @p percent of its life, once each (bit @p bit). */
 bool CrossedOnce(const Monster &monster, int percent, int bit)
 {
-	if ((RunState.thresholds & (1 << bit)) != 0)
+	if ((Cur().thresholds & (1 << bit)) != 0)
 		return false;
 	if (static_cast<int64_t>(monster.hitPoints) * 100 > static_cast<int64_t>(monster.maxHitPoints) * percent)
 		return false;
-	RunState.thresholds |= static_cast<uint8_t>(1 << bit);
+	Cur().thresholds |= static_cast<uint8_t>(1 << bit);
 	return true;
 }
 
@@ -369,7 +389,7 @@ void TickRiftConjured()
 {
 	// Gathered first, then taken away: removing one edits the list being walked (audit, 2026-10-04).
 	std::vector<int> expired;
-	for (Conjured &entry : RunState.conjured) {
+	for (Conjured &entry : Cur().conjured) {
 		if (--entry.ticksLeft <= 0)
 			expired.push_back(entry.id);
 	}
@@ -431,14 +451,6 @@ const RiftBossDef &ActiveRiftBoss()
 
 namespace {
 
-/** @brief Each Orcl Act area's bound boss, this game: his slot and type, and the row as his area dresses it. */
-struct ActBinding {
-	int slot = -1;
-	_monster_id type = MT_INVALID;
-	RiftBossDef def {};
-};
-std::array<ActBinding, 3> ActBindings {}; // by OrclArea: the woods, the desert, the Frost Caves
-
 /** @brief The hero stands where a boss's hooks run: a rift, or an Orcl Act area's last floor. */
 bool BossHooksLive()
 {
@@ -474,7 +486,7 @@ void BindActBoss(Monster &monster, const RiftBossDef &def)
 	binding.slot = static_cast<int>(monster.getId());
 	binding.type = monster.type().type;
 	binding.def = def;
-	RunState = Run {};
+	binding.run = Run {};
 	monster.resistance |= def.resistAdd;
 	constexpr uint16_t AllThree = IMMUNE_MAGIC | IMMUNE_FIRE | IMMUNE_LIGHTNING;
 	if ((monster.resistance & AllThree) == AllThree)
@@ -493,9 +505,15 @@ void ProcessActBoss()
 	if (!setlevel || !IsActBossLevel(setlvlnum))
 		return;
 	TickRiftConjured();
-	const ActBinding &binding = ActBindings[static_cast<size_t>(AreaOfLevel(setlvlnum))];
+	ActBinding &binding = ActBindings[static_cast<size_t>(AreaOfLevel(setlvlnum))];
 	if (binding.slot < 0 || binding.slot >= static_cast<int>(MaxMonsters))
 		return;
+	// Gone once his body has (audit 6, 2026-10-20): the freed slot is the next one reused, and a skeleton raised into it -
+	// Radament's own kind - wore his name, colours and size, and dropped his pile again.
+	if (std::find(ActiveMonsters, ActiveMonsters + ActiveMonsterCount, binding.slot) == ActiveMonsters + ActiveMonsterCount) {
+		binding.slot = -1;
+		return;
+	}
 	Monster &boss = Monsters[binding.slot];
 	if (boss.type().type == binding.type && boss.hitPoints > 0 && boss.mode != MonsterMode::Death)
 		TickRiftBoss(boss);
@@ -556,11 +574,11 @@ bool RiftBossSkipsThisTick(const Monster &monster)
 	const RiftBossDef *def = ActiveRiftBossFor(monster);
 	if (def == nullptr)
 		return false;
-	if (RunState.restTicks > 0)
+	if (Cur().restTicks > 0)
 		return true; // stone: the whole turn is the rest's
 	// Slow: every fourth tick of a walk is lost, as the chill loses every other one - the walk and its animation together.
 	if (def->walk > 0 && monster.isWalking())
-		return (++RunState.walkTick % 4) == 0;
+		return (++Cur().walkTick % 4) == 0;
 	return false;
 }
 
@@ -569,7 +587,7 @@ BossGlaze RiftBossGlaze(const Monster &monster)
 	const RiftBossDef *def = LookRowFor(monster);
 	if (def == nullptr)
 		return { Tint::None, 0 };
-	if (RunState.restTicks > 0)
+	if (Cur().restTicks > 0)
 		return { Tint::Hue, 0x8A8A84 }; // Grimwing's rest: stone grey
 	return { def->tint, def->rgb };
 }
@@ -578,7 +596,7 @@ int RiftBossDamagePercent(const Monster &monster)
 {
 	// The rift boss's run overflow, times the monster's own (Monster::damageOverflow - every monster's since 2026-10-05: champions,
 	// Dread bosses, escorts and variants past 255 on Torment). The one percent every blow and readout lays on.
-	const int boss = ActiveRiftBossFor(monster) != nullptr ? std::max(RunState.damageOverflow, 100) : 100;
+	const int boss = ActiveRiftBossFor(monster) != nullptr ? std::max(Cur().damageOverflow, 100) : 100;
 	return static_cast<int>(static_cast<int64_t>(boss) * std::max<int>(monster.damageOverflow, 100) / 100);
 }
 
@@ -593,7 +611,7 @@ void OnRiftBossRisen(Monster &monster)
 	const RiftBossDef *def = ActiveRiftBossFor(monster);
 	if (def == nullptr)
 		return;
-	RunState = Run {};
+	Cur() = Run {};
 	if (!def->original) {
 		// The floor band for a roster boss of an ordinary type, and for every non-original row the rift's tier scaling too, which
 		// SpawnRiftGuardian leaves to this (round 102 audit: applied there first, it was clamped away with the damage bytes).
@@ -614,7 +632,7 @@ void OnRiftBossRisen(Monster &monster)
 		monster.maxDamage = std::max(fit(monster.maxDamage), monster.minDamage);
 		monster.minDamageSpecial = fit(monster.minDamageSpecial);
 		monster.maxDamageSpecial = std::max(fit(monster.maxDamageSpecial), monster.minDamageSpecial);
-		RunState.damageOverflow = overflow;
+		Cur().damageOverflow = overflow;
 		monster.damageOverflow = 100; // carried by the run's now, not twice
 		monster.armorClass = ScaledByte(monster.armorClass + (tier - 100) / 6, def->armourPercent, 100); // ScaleRiftMonster's armour rule
 		monster.resistance |= def->resistAdd;
@@ -643,7 +661,7 @@ void TickRiftBoss(Monster &monster)
 	// the stone). A pending answer and an uncrossed threshold wait for him to wake.
 	if (monster.mode == MonsterMode::Petrified)
 		return;
-	Run &run = RunState;
+	Run &run = Cur();
 	if (run.struckCooldown > 0)
 		run.struckCooldown--;
 	if (run.fireTicks > 0)
@@ -793,13 +811,13 @@ void OnRiftBossDealtBlow(Monster &monster, Player &player, int landed, bool miss
 			PoisonPlayer(player, landed, 100);
 		break;
 	case BossSignature::Ambush:
-		if (RunState.ambushReady && heroStands) {
-			RunState.ambushReady = false;
+		if (Cur().ambushReady && heroStands) {
+			Cur().ambushReady = false;
 			ApplyPlrDamage(DamageType::Physical, player, 0, 0, 2 * landed); // the blow and twice again: triple
 		}
 		break;
 	case BossSignature::Cleave:
-		if (++RunState.swings % 4 == 0 && heroStands) {
+		if (++Cur().swings % 4 == 0 && heroStands) {
 			ApplyPlrDamage(DamageType::Physical, player, 0, 0, landed); // double
 			if (player._pHitPoints > 0)
 				StartPlrHit(player, landed, true);
@@ -837,14 +855,14 @@ void OnRiftBossStruck(Monster &monster, DamageType type, int damage)
 	case BossSignature::CasterBlink:
 	case BossSignature::NovaWhenStruck:
 		// Acted on at his next tick (TickRiftBoss), not inside the blow: a blink mid-hit would move him under M_StartHit.
-		if (RunState.struckCooldown <= 0) {
-			RunState.struckCooldown = def->signature == BossSignature::CasterBlink ? BlinkStruckCooldownTicks : StruckCooldownTicks;
-			RunState.struckPending = true;
+		if (Cur().struckCooldown <= 0) {
+			Cur().struckCooldown = def->signature == BossSignature::CasterBlink ? BlinkStruckCooldownTicks : StruckCooldownTicks;
+			Cur().struckPending = true;
 		}
 		break;
 	case BossSignature::Regenerate:
 		if (type == DamageType::Fire)
-			RunState.fireTicks = FireStopsRegenTicks;
+			Cur().fireTicks = FireStopsRegenTicks;
 		break;
 	default:
 		break;
@@ -860,7 +878,7 @@ MissileID RiftBossShotType(const Monster &monster, MissileID missile)
 		return missile;
 	// Fire, lightning and fire again, in turn; his Flash stays his own close-up answer.
 	constexpr MissileID Turn[] = { MissileID::Fireball, MissileID::LightningControl, MissileID::Firebolt };
-	return Turn[RunState.castTurn++ % 3];
+	return Turn[Cur().castTurn++ % 3];
 }
 
 void RiftBossExtraShots(Monster &monster, MissileID missile, int damage)
@@ -883,7 +901,7 @@ bool IsRiftConjured(const Monster &monster)
 	if (!BossHooksLive())
 		return false;
 	const int id = static_cast<int>(monster.getId());
-	return std::any_of(RunState.conjured.begin(), RunState.conjured.end(), [id](const Conjured &entry) { return entry.id == id; });
+	return std::any_of(Cur().conjured.begin(), Cur().conjured.end(), [id](const Conjured &entry) { return entry.id == id; });
 }
 
 void ForgetRiftConjured(const Monster &monster)
@@ -893,19 +911,19 @@ void ForgetRiftConjured(const Monster &monster)
 	if (!BossHooksLive())
 		return;
 	const int id = static_cast<int>(monster.getId());
-	RunState.conjured.erase(std::remove_if(RunState.conjured.begin(), RunState.conjured.end(), [id](const Conjured &entry) { return entry.id == id; }),
-	    RunState.conjured.end());
-	RunState.raised.erase(std::remove(RunState.raised.begin(), RunState.raised.end(), id), RunState.raised.end());
+	Cur().conjured.erase(std::remove_if(Cur().conjured.begin(), Cur().conjured.end(), [id](const Conjured &entry) { return entry.id == id; }),
+	    Cur().conjured.end());
+	Cur().raised.erase(std::remove(Cur().raised.begin(), Cur().raised.end(), id), Cur().raised.end());
 }
 
 void ResetRiftBossRun()
 {
-	RunState = Run {};
+	RiftRun = Run {};
 }
 
 void ResetRiftBossesForNewGame()
 {
-	RunState = Run {};
+	RiftRun = Run {};
 	ActBindings = {};
 	LastMet = { -1, -1, -1 };
 	Forced.reset();

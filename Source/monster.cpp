@@ -5190,6 +5190,10 @@ void AddDoppelganger(Monster &monster)
 
 void ApplyMonsterDamage(DamageType damageType, Monster &monster, int damage)
 {
+	// The Frost Caves' own take no cold from anything (audit 6, 2026-10-20: Shiver Armor's and Vengeance's cold reached them past
+	// isImmune).
+	if (damageType == DamageType::Cold && oracool::ColdImmuneHere(monster))
+		return;
 	// A companion has life and resistances (user, 2026-09-14: "make her have health instead of invulnerable"). Every
 	// blow on a monster lands here, so its resistances are taken here.
 	if (oracool::IsCompanion(monster)) {

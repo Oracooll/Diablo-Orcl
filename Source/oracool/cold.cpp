@@ -363,6 +363,8 @@ void OnColdArmourStruckInMelee(Player &player, Monster &monster)
 		AddColdHitFlash(monster.position.tile, static_cast<int>(player.getId()));
 		break;
 	case SpellID::ShiverArmor: {
+		if (monster.isImmune(MissileID::Null, DamageType::Cold))
+			break; // the Frost Caves' own: no bolt, no flinch (audit 6)
 		ChillMonster(monster, ChillTicksFor(state.level));
 		AddColdHitFlash(monster.position.tile, static_cast<int>(player.getId()));
 		// Ice Bolt's damage at the armour's rank, through the same table the sheet reads.

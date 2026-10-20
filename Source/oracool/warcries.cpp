@@ -598,6 +598,8 @@ void ApplyVengeanceCold(Player &player, Monster &monster)
 	const Buff *buff = FindBuff(player, SpellID::Vengeance);
 	if (buff == nullptr || (monster.hitPoints >> 6) <= 0 || monster.isPlayerMinion())
 		return;
+	if (monster.isImmune(MissileID::Null, DamageType::Cold))
+		return; // the Frost Caves' own (audit 6)
 	const int rank = std::max(buff->rank, 1);
 	int damage = Roll(VengeanceColdMin(rank), VengeanceColdMax(rank));
 	damage += damage * Rfa12ColdDamagePercent(monster) / 100;
