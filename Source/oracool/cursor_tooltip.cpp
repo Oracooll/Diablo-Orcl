@@ -121,8 +121,8 @@ struct BlockMetrics {
 	int lineCount = 0;
 	int lineHeight = 0;
 	int lineStride = 0;
-	Size textSize;
-	Size boxSize;
+	Size textSize {}; // Size has no default value of its own
+	Size boxSize {};
 	int padX = 0;
 	int padY = 0;
 };
@@ -678,11 +678,14 @@ struct CardLayout {
 	int stride = 0;
 	int titleHeight = 0;
 	int bigHeight = 0;
-	Size sprite;
+	/** Zero unless the card has an item: Size has no default value of its own, and a hint card (no item) read the stack's
+	 * leftovers as its picture - screen-tall and wide in Release, the tooltips of the 2026-10-14..21 notes; 0xCC (negative, ignored)
+	 * in Debug, where every test passed (user's screenshots, 2026-10-21). */
+	Size sprite {};
 	int headerHeight = 0;
 	int bodyTop = 0;
 	int footerTop = 0;
-	Size size;
+	Size size {};
 };
 
 ClxSprite CardSprite(const Item &item)

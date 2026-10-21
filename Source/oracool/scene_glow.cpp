@@ -2762,14 +2762,9 @@ void DrawSceneGlowLights(const Surface &out, Point firstTile, Point firstTileBuf
 				Pool(pen, fx, fy - 30, 18, 14, SG_PACK(255, 160, 70), (dark ? 0.5F : 0.25F) * bellows * flick);
 				continue;
 			}
-			if (!dark || !*sgOptions.Oracool.litHomes)
-				continue;
-			// A warm window high on the wall, its glow spilling round it.
-			const int top = wy - 62;
-			for (int dy = 0; dy < 12; dy++)
-				for (int dx = -4; dx <= 4; dx++)
-					pen.addF(wx + dx, top + dy, SG_PACK(255, 190, 110), (dy == 0 || std::abs(dx) == 4 ? 0.35F : 0.7F) * flick);
-			Pool(pen, wx, top + 6, 20, 16, SG_PACK(255, 170, 90), 0.22F * flick);
+			// No painted window (RTM dev note, 2026-10-21: "some townfolks have glowing rectangle on top of their heads in night time.
+			// remove it"): the 9x12 pane drawn 62px up the wall beside them sat over everything, at their heads. The home's warm light
+			// on the ground stays (TownHomeLamps).
 		}
 	}
 

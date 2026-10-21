@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file oracool_audit_test.cpp
  *
  * Regression tests pinning the fixes from the 2026-08-15 self-audit (vault reports "Self-Audit -
@@ -23861,4 +23861,78 @@ TEST(OracoolPreview, DISABLED_TownFrostHole)
 	}
 	PreviewSave(out, "town_frost_hole.png");
 	leveltype = savedType;
+}
+
+// The user's screenshots (2026-10-21, v1.13.095): the LMB well's "Zeal" and the skill menus' "Fist Attack" and "Resist Lightning"
+// cards the whole screen tall. A Paladin with Zeal on the left button: the well's hover through CheckPanelInfo, then each menu cell
+// through the menu's own draw, three frames each as a game tick runs them. Writes tips_picker_<n>.png for any card over 300px.
+TEST(OracoolPreview, DISABLED_SkillPickerAndWellTooltips)
+{
+	MountTestArchives(true);
+	if (!HaveDiabdat())
+		GTEST_SKIP() << "needs diabdat.mpq";
+	EnsureCursorSpritesLoaded();
+	PreviewLoadPalette();
+	InitPNG();
+	LoadSmallSpellIcons();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const int savedWidth = gnScreenWidth;
+	const int savedHeight = gnScreenHeight;
+	gnScreenWidth = 1280;
+	gnScreenHeight = 720;
+	devilution::Player &player = AuditV188Hero();
+	player._pClass = HeroClass::Warrior; // the Paladin's slot
+	player._pLRSpell = SpellID::Zeal;
+	player._pLRSplType = SpellType::Skill;
+	pcursinvitem = -1;
+	pcursitem = -1;
+	pcursstashitem = StashStruct::EmptyCell;
+	ActiveTabItemHovered = false;
+	OwnedSurface out = OwnedSurface::Rgb(1280, 720);
+	int saved = 0;
+	const auto check = [&](const std::string &what) {
+		const Rectangle r = oracool::GetPrevCursorTooltipRect();
+		std::cout << what << " '" << std::string(InfoString.str()).substr(0, 40) << "' lines " << std::count(InfoString.str().begin(), InfoString.str().end(), '\n') + 1 << ": " << r.size.width << "x" << r.size.height << "\n";
+		if ((r.size.height > 300 || r.size.width > 300) && saved < 4)
+			PreviewSave(out, ("tips_picker_" + std::to_string(saved++) + ".png").c_str());
+		EXPECT_LE(r.size.height, 300) << what;
+		EXPECT_LE(r.size.width, 300) << what;
+	};
+
+	MousePosition = oracool::GetLmbSkillButtonRect().Center();
+	CheckPanelInfo();
+	for (int frame = 0; frame < 3; frame++) {
+		SDL_FillRect(out.surface, nullptr, 0);
+		oracool::DrawCursorTooltip(out);
+		check("LMB well frame " + std::to_string(frame));
+	}
+
+	for (const bool left : { true, false }) {
+		oracool::OpenSkillPicker(left);
+		ASSERT_TRUE(oracool::IsSkillPickerOpen());
+		const Rectangle picker = oracool::GetSkillPickerRect();
+		std::set<std::string> seen;
+		for (int y = picker.position.y; y < picker.position.y + picker.size.height; y += 6) {
+			for (int x = picker.position.x; x < picker.position.x + picker.size.width; x += 6) {
+				MousePosition = { x, y };
+				ClearPanelStrings();
+				for (int frame = 0; frame < 3; frame++) {
+					SDL_FillRect(out.surface, nullptr, 0);
+					oracool::DrawSkillPicker(out);
+					if (InfoString.empty())
+						break;
+					oracool::DrawCursorTooltip(out);
+					const std::string title { InfoString.str().substr(0, InfoString.str().find('\n')) };
+					if (frame == 2 && seen.insert(title).second)
+						check(std::string(left ? "LMB" : "RMB") + " menu");
+				}
+			}
+		}
+		oracool::CloseSkillPicker();
+	}
+	ClearPanelStrings();
+	gnScreenWidth = savedWidth;
+	gnScreenHeight = savedHeight;
+	HeadlessMode = savedHeadless;
 }
