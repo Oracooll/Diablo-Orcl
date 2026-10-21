@@ -260,6 +260,14 @@ void DrlgTPass3()
 			FillTile(x, y, 1 + (x / 2 + y / 2) % 4);
 	}
 
+	// Oracool: the tree that stood in the Frost Caves' hole on the east edge (RTM dev note, 2026-10-21: "there is a tree right in
+	// the middle of the frost area entrance. either move the entrance or remove the tree") - grass over its megatile, (83,30).
+	FillTile(82, 30, 1 + (82 / 2 + 30 / 2) % 4);
+	// And a doorway in the north wall (user, 2026-10-21, a screenshot: "make here the entrance to desert ... put a doorway in the
+	// red marked part of the wall"): grass over the wall's megatile at x 36-37, row 10 - the way to the desert's gate (oracool/woods.cpp),
+	// the walled strip behind it laid with sand.
+	FillTile(36, 10, 1 + (36 / 2 + 10 / 2) % 4);
+
 	InitTownPieces();
 }
 

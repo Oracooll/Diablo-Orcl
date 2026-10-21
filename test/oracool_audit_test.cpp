@@ -23534,7 +23534,7 @@ TEST(OracoolWoods, TristramsGatesNameWhereTheyLeadAndAreOnTheMap)
 	ASSERT_TRUE(oracool::WoodsExitHover({ 57, 94 }, entrance, text));
 	EXPECT_EQ(text, "To the Greywood Verge");
 	EXPECT_EQ(entrance, Point(57, 94));
-	ASSERT_TRUE(oracool::WoodsExitHover({ 73, 11 }, entrance, text));
+	ASSERT_TRUE(oracool::WoodsExitHover({ 38, 1 }, entrance, text));
 	EXPECT_EQ(text, "To the Salt Road");
 	ASSERT_TRUE(oracool::WoodsExitHover({ 83, 31 }, entrance, text));
 	EXPECT_EQ(text, "To the Rime Gate");
@@ -23935,4 +23935,43 @@ TEST(OracoolPreview, DISABLED_SkillPickerAndWellTooltips)
 	gnScreenWidth = savedWidth;
 	gnScreenHeight = savedHeight;
 	HeadlessMode = savedHeadless;
+}
+
+// Tristram's desert doorway (user, 2026-10-21): the walled strip's sand, the gate's glow, the arch in the doorway, over a flat
+// grass-green floor with the two walls and the north wall drawn as dark tiles. Writes town_desert_door.png.
+TEST(OracoolPreview, DISABLED_TownDesertDoor)
+{
+	MountTestArchives(true);
+	PreviewLoadPalette();
+	InitPNG();
+	const dungeon_type savedType = leveltype;
+	leveltype = DTYPE_TOWN;
+	OwnedSurface out = OwnedSurface::Rgb(800, 500);
+	SDL_FillRect(out.surface, nullptr, SDL_MapRGB(out.surface->format, 70, 88, 52));
+	const Point centre { 37, 8 };
+	const auto targetOf = [&](int x, int y) {
+		return Point { 400 + (x - centre.x) * 32 - (y - centre.y) * 32 - 32, 250 + (x - centre.x) * 16 + (y - centre.y) * 16 + 15 };
+	};
+	for (int y = 0; y <= 14; y++) {
+		for (int x = 30; x <= 46; x++) {
+			const Point t = targetOf(x, y);
+			const bool wall = (y == 10 && x != 36 && x != 37) || ((x == 34 || x == 42) && y < 10);
+			if (wall) {
+				for (int k = 0; k < 31; k++) {
+					const int yy = t.y - k;
+					const int inset = k < 16 ? 30 - 2 * k : 2 * (k - 15);
+					for (int xx = std::max(t.x + inset, 0); xx <= std::min(t.x + 63 - inset, 799); xx++)
+						if (yy >= 0 && yy < 500)
+							*out.at<uint32_t>(xx, yy) = 0x2A2622U;
+				}
+				continue;
+			}
+			oracool::DrawWoodsGateTint(out, { x, y }, t);
+		}
+	}
+	for (int y = 0; y <= 14; y++)
+		for (int x = 30; x <= 46; x++)
+			oracool::DrawTownFrostMouth(out, { x, y }, targetOf(x, y), -1); // full brightness: no light tables here
+	PreviewSave(out, "town_desert_door.png");
+	leveltype = savedType;
 }

@@ -4109,13 +4109,17 @@ bool OnTownGate(Point tile)
 }
 
 /**
- * @brief The road out to the desert: on Tristram's north-east edge, east of the cows' pen (user, 2026-10-13: "the desert east of the
- * cows"), the open row at the map's top edge past the pen's fence. Standing on it loads desert floor 1.
+ * @brief The road out to the desert: through a gap in Tristram's north wall by the church (user, 2026-10-21, a screenshot: "make here
+ * the entrance to desert. the yellowish zone cover with sand textures"; then "just clear a part of the wall so i can get to the sand
+ * area"), the wall's megatile at x 36-37 cleared (levels/town.cpp), into the walled strip behind it (x 35-41, y 0-9) laid with sand.
+ * Its far end, rows 1-2, loads desert floor 1. Until then the open top row east of the cows' pen.
  */
-constexpr int DesertGateX0 = 72;
-constexpr int DesertGateX1 = 75;
-constexpr int DesertGateY0 = 11; // the top open row (10 is the map's edge), and the one below it
-constexpr int DesertGateY1 = 12;
+constexpr int DoorwayX0 = 36; // the gap in the wall, for the sand's tongue through it
+constexpr int DoorwayX1 = 37;
+constexpr int DesertGateX0 = 35;
+constexpr int DesertGateX1 = 41;
+constexpr int DesertGateY0 = 1; // the strip's far end
+constexpr int DesertGateY1 = 2;
 
 bool OnDesertGate(Point tile)
 {
@@ -4245,7 +4249,7 @@ std::vector<Point> WoodsExitMarkers()
 Point WoodsTownReturnTile()
 {
 	if (IsDesertLevel(setlvlnum))
-		return { (DesertGateX0 + DesertGateX1) / 2, DesertGateY1 + 2 }; // two rows in from the desert's gate
+		return { (DesertGateX0 + DesertGateX1) / 2, DesertGateY1 + 3 }; // on the sand, three rows in from the strip's far end
 	if (IsFrostLevel(setlvlnum))
 		return { FrostGateX0 - 2, (FrostGateY0 + FrostGateY1) / 2 }; // two tiles in from the Frost Caves' gate
 	return { 57, GateY0 - 2 }; // on the cleared path, two rows above the entrance
@@ -6239,14 +6243,78 @@ void DrawTownFrostHole(const Surface &out, Point tile, Point target)
 	}
 }
 
+
+/**
+ * @brief The sand of the walled strip behind the gap in Tristram's north wall (x 35-41, y 0-9) and a tongue of it through the gap, over
+ * @p tile's diamond: the desert's own sand_a, pinned to the world, darkened as the grass under it is, its edge soft.
+ */
+void DrawTownDesertSand(const Surface &out, Point tile, Point target)
+{
+	constexpr float X0 = 34.5F, X1 = 41.5F, Y0 = -1.0F, Y1 = 9.5F; // the strip, wall to wall
+	if (tile.x < 33 || tile.x > 43 || tile.y > 12)
+		return;
+	static Picture sand;
+	static bool tried = false;
+	if (!tried) {
+		tried = true;
+		LoadScaled("levels\\desert\\sand_a.png", sand, false, 14); // the desert floors' own scale (GroundFiles)
+	}
+	if (sand.px.empty())
+		return;
+	for (int k = 0; k < 31; k++) {
+		const int y = target.y - k;
+		if (y < 0 || y >= out.h())
+			continue;
+		const int inset = k < 16 ? 30 - 2 * k : 2 * (k - 15);
+		const int x0 = std::max(target.x + inset, 0);
+		const int x1 = std::min(target.x + 63 - inset, out.w() - 1);
+		uint32_t *row = out.at<uint32_t>(0, y);
+		const int dy = 15 - k;
+		for (int x = x0; x <= x1; x++) {
+			const int dx = x - (target.x + 32);
+			const float u = static_cast<float>(tile.x) + static_cast<float>(dx + 2 * dy) / 64.0F;
+			const float v = static_cast<float>(tile.y) + static_cast<float>(2 * dy - dx) / 64.0F;
+			// Inside the strip: full; the tongue through the doorway, fading two tiles into the town.
+			float cover = 0.0F;
+			if (u > X0 && u < X1 && v > Y0 && v < Y1)
+				cover = std::clamp(std::min({ u - X0, X1 - u, Y1 - v + 0.9F }) / 0.6F, 0.0F, 1.0F);
+			const float doorU = (DoorwayX0 + DoorwayX1) * 0.5F;
+			if (std::abs(u - doorU) < 1.6F && v >= Y1 - 0.5F && v < 12.5F) {
+				const float side = std::clamp((1.6F - std::abs(u - doorU)) / 0.6F, 0.0F, 1.0F);
+				const float along = std::clamp((12.5F - v) / 2.0F, 0.0F, 1.0F);
+				cover = std::max(cover, side * along);
+			}
+			if (cover <= 0.0F)
+				continue;
+			// The world pixel, so the sand does not swim with the camera.
+			const int wx = (tile.x - tile.y) * 32 + dx;
+			const int wy = (tile.x + tile.y) * 16 + dy;
+			const int sx = ((wx % sand.w) + sand.w) % sand.w;
+			const int sy = ((wy % sand.h) + sand.h) % sand.h;
+			const uint32_t s = sand.px[static_cast<size_t>(sy) * sand.w + sx];
+			const uint32_t c = row[x];
+			const float r = static_cast<float>((c >> 16) & 0xFF), g = static_cast<float>((c >> 8) & 0xFF), b = static_cast<float>(c & 0xFF);
+			// As dark as the grass it covers: the town's day and night, the hero's light.
+			const float lit = std::clamp((0.299F * r + 0.587F * g + 0.114F * b) / 70.0F, 0.25F, 1.5F);
+			const auto ch = [&](int sh, float under) {
+				const float top = static_cast<float>((s >> sh) & 0xFF) * lit;
+				return static_cast<uint32_t>(std::clamp(under + (top - under) * cover, 1.0F, 255.0F));
+			};
+			row[x] = (ch(16, r) << 16) | (ch(8, g) << 8) | ch(0, b);
+		}
+	}
+}
+
 } // namespace
 
 void DrawWoodsGateTint(const Surface &out, Point tile, Point target)
 {
 	if (out.isIndexed())
 		return;
-	if (leveltype == DTYPE_TOWN)
+	if (leveltype == DTYPE_TOWN) {
+		DrawTownDesertSand(out, tile, target); // the strip behind the desert's doorway
 		DrawTownFrostHole(out, tile, target); // under the gate's glow
+	}
 	// The marks: a soft round glow over each way out, centred on its strip, fading to nothing by its radius (the seam survey,
 	// 2026-10-14: the tinted strips were flat blocks of tiles with straight edges). Each tile nearest one takes its share.
 	ExitMark marks[3];
