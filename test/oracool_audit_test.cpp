@@ -23838,3 +23838,27 @@ TEST(OracoolPreview, DISABLED_BurgerMenuTooltips)
 	gnScreenHeight = savedHeight;
 	HeadlessMode = savedHeadless;
 }
+
+// Tristram's way down into the Frost Caves (RTM dev note, 2026-10-21: "the frozen stream entrance - use this asset in tristram"): the
+// gate's ground with the Frozen Stream's hole laid in and the gate's glow over it, on a flat grass-green floor. Writes town_frost_hole.png.
+TEST(OracoolPreview, DISABLED_TownFrostHole)
+{
+	MountTestArchives(true);
+	PreviewLoadPalette();
+	InitPNG();
+	const dungeon_type savedType = leveltype;
+	leveltype = DTYPE_TOWN;
+	OwnedSurface out = OwnedSurface::Rgb(640, 400);
+	SDL_FillRect(out.surface, nullptr, SDL_MapRGB(out.surface->format, 70, 88, 52));
+	// The gate's middle at the picture's middle; each tile's bottom-left corner as the floor pass hands it (target).
+	const Point centre { 83, 30 };
+	for (int y = 24; y <= 37; y++) {
+		for (int x = 77; x <= 89; x++) {
+			const int sx = 320 + (x - centre.x) * 32 - (y - centre.y) * 32 - 32;
+			const int sy = 200 + (x - centre.x) * 16 + (y - centre.y) * 16 + 15;
+			oracool::DrawWoodsGateTint(out, { x, y }, { sx, sy });
+		}
+	}
+	PreviewSave(out, "town_frost_hole.png");
+	leveltype = savedType;
+}

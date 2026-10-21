@@ -5988,7 +5988,10 @@ void DrawTownFrostMouth(const Surface &out, Point tile, Point target, int light)
 {
 	// Behind the gate's middle, out past the walk's edge, so the hero walking onto the gate stands in front of it.
 	constexpr Point MouthTile { FrostGateX1 + 2, (FrostGateY0 + FrostGateY1) / 2 };
-	if (leveltype != DTYPE_TOWN || out.isIndexed() || tile != MouthTile)
+	// The hill's mouth is gone (RTM dev note, 2026-10-21: "the frozen stream entrance - use this asset in tristram to go down to frost
+	// area"): the Frozen Stream's hole with its ladder lies in the gate's ground instead (DrawTownFrostHole).
+	constexpr bool HillMouth = false;
+	if (!HillMouth || leveltype != DTYPE_TOWN || out.isIndexed() || tile != MouthTile)
 		return;
 	// At half the painting's size: the hero, 150 px painted, at the town's own height.
 	static Picture mouth;
@@ -6188,10 +6191,62 @@ bool DrawAreaObject(const Surface &out, int objectType, bool used, Point foot, b
 	return true;
 }
 
+namespace {
+
+/**
+ * @brief Tristram's way down into the Frost Caves: the Frozen Stream's own entrance (RfA-79's hole with its rope ladder), laid into the
+ * ground of the east edge's gate by its soft alpha, as the Frost Caves lay it into theirs - the part of it over @p tile's diamond.
+ */
+void DrawTownFrostHole(const Surface &out, Point tile, Point target)
+{
+	static Picture hole;
+	static bool tried = false;
+	if (!tried) {
+		tried = true;
+		LoadDecal(FrostEntranceFiles[0], hole, EntrancePercent, { 0.0, 0.0, 0.0 }); // no ground colour to match: its own snow
+	}
+	if (hole.px.empty())
+		return;
+	// On the gate's west column, so its fade stays on the open edge tiles (the column past the gate is rock, never floored).
+	const float cx = static_cast<float>(FrostGateX0), cy = (FrostGateY0 + FrostGateY1) * 0.5F;
+	if (std::abs(static_cast<float>(tile.x) - cx) > 3.0F || std::abs(static_cast<float>(tile.y) - cy) > 3.0F)
+		return;
+	for (int k = 0; k < 31; k++) {
+		const int y = target.y - k;
+		if (y < 0 || y >= out.h())
+			continue;
+		const int inset = k < 16 ? 30 - 2 * k : 2 * (k - 15);
+		const int x0 = std::max(target.x + inset, 0);
+		const int x1 = std::min(target.x + 63 - inset, out.w() - 1);
+		uint32_t *row = out.at<uint32_t>(0, y);
+		const int dy = 15 - k;
+		for (int x = x0; x <= x1; x++) {
+			const int dx = x - (target.x + 32);
+			const float du = static_cast<float>(tile.x) + static_cast<float>(dx + 2 * dy) / 64.0F - cx;
+			const float dv = static_cast<float>(tile.y) + static_cast<float>(2 * dy - dx) / 64.0F - cy;
+			const int px = hole.footX + static_cast<int>(std::lround((du - dv) * 32.0F));
+			const int py = hole.footY + static_cast<int>(std::lround((du + dv) * 16.0F));
+			if (px < 0 || py < 0 || px >= hole.w || py >= hole.h)
+				continue;
+			const uint32_t d = hole.px[static_cast<size_t>(py) * hole.w + px];
+			const uint32_t a = d >> 24;
+			if (a == 0)
+				continue;
+			const uint32_t c = row[x];
+			const auto mix = [a](uint32_t p, uint32_t q, int sh) { return ((((p >> sh) & 0xFF) * (255 - a) + ((q >> sh) & 0xFF) * a) / 255) & 0xFF; };
+			row[x] = (std::max<uint32_t>(mix(c, d, 16), 1) << 16) | (std::max<uint32_t>(mix(c, d, 8), 1) << 8) | std::max<uint32_t>(mix(c, d, 0), 1);
+		}
+	}
+}
+
+} // namespace
+
 void DrawWoodsGateTint(const Surface &out, Point tile, Point target)
 {
 	if (out.isIndexed())
 		return;
+	if (leveltype == DTYPE_TOWN)
+		DrawTownFrostHole(out, tile, target); // under the gate's glow
 	// The marks: a soft round glow over each way out, centred on its strip, fading to nothing by its radius (the seam survey,
 	// 2026-10-14: the tinted strips were flat blocks of tiles with straight edges). Each tile nearest one takes its share.
 	ExitMark marks[3];
@@ -6207,6 +6262,7 @@ void DrawWoodsGateTint(const Surface &out, Point tile, Point target)
 	const ExitMark mark = marks[nearest];
 	const bool open = mark.open;
 	const bool hovered = nearest == HoveredExit;
+	const bool frostHole = leveltype == DTYPE_TOWN && marks[nearest].to == SL_ORCL_FROST_1;
 	// Green for a road you can take, amber for one not open yet; a slow pulse, a little stronger toward the tile's centre.
 	const int tr = open ? 120 : 236;
 	const int tg = open ? 255 : 170;
@@ -6230,11 +6286,14 @@ void DrawWoodsGateTint(const Surface &out, Point tile, Point target)
 			const float fall = 1.0F - std::sqrt(u * u + v * v) / mark.radius;
 			if (fall <= 0.0F)
 				continue;
-			const int a = static_cast<int>(static_cast<float>(base) * fall * fall * (3.0F - 2.0F * fall));
+			int a = static_cast<int>(static_cast<float>(base) * fall * fall * (3.0F - 2.0F * fall));
 			const uint32_t c = row[x];
 			const int r = static_cast<int>((c >> 16) & 0xFF);
 			const int g = static_cast<int>((c >> 8) & 0xFF);
 			const int b = static_cast<int>(c & 0xFF);
+			// Tristram's frost hole (2026-10-21): the glow on its snowy rim, its dark pit left dark.
+			if (frostHole)
+				a = a * std::min(255, (r + g + b) / 2) / 255;
 			// Mixed toward the tint and brightened, so it reads on dark grass and on bright paving alike.
 			const int nr = std::min(255, r + ((tr - r) * a >> 8) + (a >> 3));
 			const int ng = std::min(255, g + ((tg - g) * a >> 8) + (a >> 3));
