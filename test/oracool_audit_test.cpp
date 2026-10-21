@@ -23544,3 +23544,297 @@ TEST(OracoolWoods, TristramsGatesNameWhereTheyLeadAndAreOnTheMap)
 	leveltype = savedType;
 	setlevel = savedSetlevel;
 }
+
+// Diagnostic (2026-10-21, "tooltips game-wide got enormous"): every item kind's card sprite, as the card measures it.
+TEST(OracoolPreview, DISABLED_EveryCardSpriteFits)
+{
+	MountTestArchives(true);
+	EnsureCursorSpritesLoaded();
+	int worst = 0;
+	for (int i = IDI_GOLD; i <= IDI_LAST; i++) {
+		const ItemData &data = AllItemsList[static_cast<size_t>(i)];
+		if (data.iName == nullptr)
+			continue;
+		const int curs = data.iCurs + CURSOR_FIRSTITEM;
+		if (curs < CURSOR_FIRSTITEM || static_cast<size_t>(curs - CURSOR_FIRSTITEM) >= GetNumInvItems()) {
+			ADD_FAILURE() << data.iName << ": cursor " << data.iCurs << " past the sheets (" << GetNumInvItems() << ")";
+			continue;
+		}
+		const ClxSprite sprite = GetInvItemSprite(curs);
+		const Size size = GetInvItemSize(curs);
+		worst = std::max(worst, static_cast<int>(sprite.height()));
+		EXPECT_LE(sprite.height(), 120) << data.iName << " (" << i << ") sprite " << sprite.width() << "x" << sprite.height() << ", size " << size.width << "x" << size.height;
+	}
+	// The uniques' own icons (IPL_INVCURS) and the sets' (MakeSetItem): numbers the bases above never use.
+	const auto check = [&](const char *name, int iCurs) {
+		const int curs = iCurs + CURSOR_FIRSTITEM;
+		if (static_cast<size_t>(curs - CURSOR_FIRSTITEM) >= GetNumInvItems()) {
+			ADD_FAILURE() << name << ": cursor " << iCurs << " past the sheets (" << GetNumInvItems() << ")";
+			return;
+		}
+		const ClxSprite sprite = GetInvItemSprite(curs);
+		worst = std::max(worst, static_cast<int>(sprite.height()));
+		EXPECT_LE(sprite.height(), 120) << name << " icon " << iCurs << " sprite " << sprite.width() << "x" << sprite.height();
+		EXPECT_LE(sprite.width(), 90) << name << " icon " << iCurs << " sprite " << sprite.width() << "x" << sprite.height();
+	};
+	for (size_t u = 0; u < UniqueItemCount; u++) {
+		for (const ItemPower &power : UniqueItems[u].powers) {
+			if (power.type == IPL_INVCURS && UniqueItems[u].UIName != nullptr)
+				check(UniqueItems[u].UIName, power.param1);
+		}
+	}
+	for (const oracool::SetItemDefinition &def : oracool::ItemSetItems)
+		check(def.name, static_cast<int>(def.cursor));
+	std::cout << "tallest card sprite " << worst << " of " << GetNumInvItems() << " frames\n";
+}
+
+// The tooltip audit (2026-10-21, "tool tips game wide got enourmous"): text that is not the hovered item's own - a skill's, a
+// button's, an artisan's - never goes out as that item's card. With an item hover flag left over, it did: unwrapped, beside the
+// item's picture slot. And a real item's card still is one.
+TEST(OracoolTooltip, LeftoverItemHoverNeverDressesOtherTextAsAnItemCard)
+{
+	MountTestArchives(true);
+	EnsureCursorSpritesLoaded();
+	if (!HaveDiabdat())
+		GTEST_SKIP() << "needs diabdat.mpq";
+	Players.resize(1);
+	MyPlayer = &Players[0];
+	devilution::Player &player = *MyPlayer;
+	player = {};
+	InspectPlayer = MyPlayer;
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const int savedWidth = gnScreenWidth;
+	const int savedHeight = gnScreenHeight;
+	gnScreenWidth = 1280;
+	gnScreenHeight = 720;
+	OwnedSurface out = OwnedSurface::Rgb(1280, 720);
+
+	player.InvList[0] = PreviewBase(PreviewIdx(ICURS_LONG_SWORD), 7);
+	player._pNumInv = 1;
+	pcursinvitem = INVITEM_INV_FIRST; // left over from the hover pass
+	pcursitem = -1;
+	pcursstashitem = StashStruct::EmptyCell;
+	ActiveTabItemHovered = false;
+
+	// A window's own hover over it: a skill's name and a long description line.
+	ClearPanelStrings();
+	SetPanelString(std::string("Fist Attack"), UiFlags::ColorWhite);
+	AddPanelString(std::string("Strikes with the bare hands when no weapon is held - the damage of the hero's strength and level, never more than a "
+	               "dagger's, and never a miss against a stunned foe."),
+	    UiFlags::ColorWhite);
+	MousePosition = { 640, 500 };
+	oracool::DrawCursorTooltip(out);
+	const Rectangle skill = oracool::GetPrevCursorTooltipRect();
+	if (std::getenv("ORCL_TIP_DEBUG") != nullptr) {
+		PreviewLoadPalette();
+		InitPNG();
+		PreviewSave(out, "leftover_skill.png");
+		std::cout << "skill " << skill.position.x << "," << skill.position.y << " " << skill.size.width << "x" << skill.size.height << "\n";
+	}
+	EXPECT_GT(skill.size.width, 0);
+	EXPECT_LE(skill.size.width, 250) << "a skill's text went out as the sword's card";
+	EXPECT_LE(skill.size.height, 250);
+
+	// The sword's own hover: its card, picture and all.
+	ClearPanelStrings();
+	SetPanelString(player.InvList[0].getName(), player.InvList[0].getTextColor());
+	PrintItemDetails(player.InvList[0]);
+	oracool::DrawCursorTooltip(out);
+	const Rectangle sword = oracool::GetPrevCursorTooltipRect();
+	EXPECT_GT(sword.size.height, 84) << "the sword's card lost its picture";
+	EXPECT_LE(sword.size.width, 2 * 320) << "the sword's card is wider than its lines allow";
+
+	pcursinvitem = -1;
+	ClearPanelStrings();
+	player = {};
+	gnScreenWidth = savedWidth;
+	gnScreenHeight = savedHeight;
+	HeadlessMode = savedHeadless;
+}
+
+/**
+ * The tooltip audit's sweep (2026-10-21: "check tooltips of icons on vendors ui" / "and on artisans ui"): every vendor and
+ * artisan window, the cursor walked over it in 4px steps, each tooltip it raises drawn by DrawCursorTooltip at 1280x720 and
+ * measured. Prints every distinct tooltip with its size; writes tips_<window>.png with the largest one drawn over its window.
+ * A tooltip wider or taller than 300px fails.
+ */
+TEST(OracoolPreview, DISABLED_VendorAndArtisanTooltips)
+{
+	MountTestArchives(/*gameArchivesToo=*/true);
+	if (!HaveDiabdat())
+		GTEST_SKIP() << "needs diabdat.mpq";
+	EnsureCursorSpritesLoaded();
+	PreviewLoadPalette();
+	InitPNG();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const Point savedMouse = MousePosition;
+	const int savedWidth = gnScreenWidth;
+	const int savedHeight = gnScreenHeight;
+	gnScreenWidth = 1280;
+	gnScreenHeight = 720;
+	devilution::Player &player = AuditV188Hero();
+	InspectPlayer = &player;
+	Stash = {};
+	Stash.gold = 12345678;
+	InitStores();
+	pcursinvitem = -1;
+	pcursitem = -1;
+	pcursstashitem = StashStruct::EmptyCell;
+	ActiveTabItemHovered = false;
+
+	const auto sweep = [&](const std::string &name, const std::function<void(const Surface &)> &draw, const std::function<bool()> &hover) {
+		OwnedSurface scratch = OwnedSurface::Rgb(1280, 720);
+		MousePosition = { -50, -50 };
+		draw(scratch);
+		std::map<std::string, std::pair<Size, Point>> seen;
+		std::string worstKey;
+		int worstArea = 0;
+		for (int y = 0; y < 720; y += 4) {
+			for (int x = 0; x < 1280; x += 4) {
+				MousePosition = { x, y };
+				ClearPanelStrings();
+				if (!hover() || InfoString.empty())
+					continue;
+				const std::string text { InfoString.str() };
+				if (seen.count(text) != 0)
+					continue;
+				oracool::DrawCursorTooltip(scratch);
+				const Rectangle rect = oracool::GetPrevCursorTooltipRect();
+				seen[text] = { rect.size, MousePosition };
+				const bool itemCard = oracool::IsShopItemHovered(); // a ware's own card is as wide as its stat lines
+				EXPECT_TRUE(itemCard || rect.size.width <= 300) << name << ": " << text.substr(0, text.find('\n')) << " is " << rect.size.width << "x" << rect.size.height;
+				EXPECT_TRUE(itemCard || rect.size.height <= 300) << name << ": " << text.substr(0, text.find('\n')) << " is " << rect.size.width << "x" << rect.size.height;
+				if (rect.size.width * rect.size.height > worstArea) {
+					worstArea = rect.size.width * rect.size.height;
+					worstKey = text;
+				}
+			}
+		}
+		std::cout << "== " << name << ": " << seen.size() << " tooltips\n";
+		for (const auto &[text, entry] : seen)
+			std::cout << "   " << entry.first.width << "x" << entry.first.height << "  " << text.substr(0, text.find('\n')) << "\n";
+		if (worstKey.empty())
+			return;
+		OwnedSurface out = OwnedSurface::Rgb(1280, 720);
+		SDL_FillRect(out.surface, nullptr, SDL_MapRGB(out.surface->format, 40, 60, 60));
+		MousePosition = seen[worstKey].second;
+		draw(out);
+		ClearPanelStrings();
+		hover();
+		oracool::DrawCursorTooltip(out);
+		PreviewSave(out, ("tips_" + name + ".png").c_str());
+	};
+
+	const std::pair<TalkID, const char *> shops[] = {
+		{ TalkID::SmithBuy, "griswold_basic" }, { TalkID::SmithPremiumBuy, "griswold_magic" }, { TalkID::SmithSell, "griswold_sold" },
+		{ TalkID::WitchBuy, "adria_supplies" }, { TalkID::WitchSell, "adria_sold" }, { TalkID::HealerBuy, "pepin_supplies" },
+		{ TalkID::BoyBuy, "wirt_shop" }, { TalkID::BoyGamble, "wirt_gamble" }
+	};
+	premiumitems[0] = PreviewBase(PreviewIdx(ICURS_SHORT_SWORD), 777);
+	for (const auto &[id, name] : shops) {
+		StartStore(id);
+		if (stextflag != id)
+			continue;
+		sweep(name, [](const Surface &out) { oracool::DrawShopGrid(out); }, [] { return oracool::SetShopHoverInfoString(); });
+	}
+	stextflag = TalkID::None;
+
+	oracool::ResetLevskiRoarForNewGame();
+	oracool::OpenLevskiWindowFor(oracool::TransmuteHost::Smith);
+	stextflag = TalkID::SmithTransmute;
+	sweep("griswold_salvage", [](const Surface &out) { oracool::DrawLevskiRoar(out); }, [] { return oracool::SetLevskiHoverInfoString(); });
+	oracool::ResetLevskiRoarForNewGame();
+	stextflag = TalkID::None;
+	oracool::OpenLevskiWindowFor(oracool::TransmuteHost::Cube);
+	sweep("levski_cube", [](const Surface &out) { oracool::DrawLevskiRoar(out); }, [] { return oracool::SetLevskiHoverInfoString(); });
+	oracool::ResetLevskiRoarForNewGame();
+
+	const auto click = [](Point at) {
+		MousePosition = at;
+		oracool::CheckWorkshopClick(at);
+		oracool::ReleaseWorkshopButton();
+	};
+	const auto drawWorkshop = [](const Surface &out) { oracool::DrawWorkshop(out); };
+	const auto hoverWorkshop = [] { return oracool::SetWorkshopHoverInfoString(); };
+	oracool::ResetWorkshopForNewGame();
+	oracool::OpenWorkshop(oracool::WorkshopHost::Mystic);
+	const char *gillianTabs[] = { "gillian_reroll", "gillian_imbue", "gillian_craft", "gillian_recipes" };
+	for (int i = 0; i < 4; i++) {
+		click(oracool::GetSideTabRect(i).Center());
+		sweep(gillianTabs[i], drawWorkshop, hoverWorkshop);
+	}
+	oracool::ResetWorkshopForNewGame();
+	oracool::OpenWorkshop(oracool::WorkshopHost::Jeweller);
+	const char *ogdenTabs[] = { "ogden_gems", "ogden_runes", "ogden_jewels", "ogden_craft", "ogden_recipes" };
+	for (int i = 0; i < 5; i++) {
+		click(oracool::GetSideTabRect(i).Center());
+		sweep(ogdenTabs[i], drawWorkshop, hoverWorkshop);
+	}
+	oracool::ResetWorkshopForNewGame();
+
+	ClearPanelStrings();
+	Stash = {};
+	MousePosition = savedMouse;
+	gnScreenWidth = savedWidth;
+	gnScreenHeight = savedHeight;
+	HeadlessMode = savedHeadless;
+}
+
+// The burger menu's hovers (user, 2026-10-21: "burger menu tooltip is also huge. top to bottom"), through the game's own hover
+// pass (CheckPanelInfo) and three draws, as a game tick and its frames run them. Writes tips_burger.png (the last icon's card).
+TEST(OracoolPreview, DISABLED_BurgerMenuTooltips)
+{
+	MountTestArchives(true);
+	if (!HaveDiabdat())
+		GTEST_SKIP() << "needs diabdat.mpq";
+	EnsureCursorSpritesLoaded();
+	PreviewLoadPalette();
+	InitPNG();
+	const bool savedHeadless = HeadlessMode;
+	HeadlessMode = false;
+	const int savedWidth = gnScreenWidth;
+	const int savedHeight = gnScreenHeight;
+	gnScreenWidth = 1280;
+	gnScreenHeight = 720;
+	devilution::Player &player = AuditV188Hero();
+	InspectPlayer = &player;
+	pcursinvitem = -1;
+	pcursitem = -1;
+	pcursstashitem = StashStruct::EmptyCell;
+	ActiveTabItemHovered = false;
+	OwnedSurface out = OwnedSurface::Rgb(1280, 720);
+
+	const Point slot = oracool::GetBeltSlotRect(oracool::BeltMenuSlotIndex).Center();
+	MousePosition = slot;
+	CheckPanelInfo();
+	oracool::DrawCursorTooltip(out);
+	std::cout << "Menu Bar slot: " << oracool::GetPrevCursorTooltipRect().size.width << "x" << oracool::GetPrevCursorTooltipRect().size.height << "\n";
+	if (!oracool::IsHudMenuOpen()) {
+		oracool::CheckHudMenuSlotClick(slot);
+		oracool::ReleaseHudMenuButtons();
+	}
+	ASSERT_TRUE(oracool::IsHudMenuOpen());
+	for (int i = 0; i < 10; i++) {
+		const Rectangle cell = oracool::GetHudMenuCellRect(i);
+		if (cell.size.width <= 0)
+			break;
+		MousePosition = cell.Center();
+		CheckPanelInfo();
+		for (int frame = 0; frame < 3; frame++) {
+			oracool::DrawCursorTooltip(out);
+			const Rectangle r = oracool::GetPrevCursorTooltipRect();
+			if (frame == 0)
+				std::cout << "icon " << i << " '" << std::string(InfoString.str()) << "': " << r.size.width << "x" << r.size.height << " at " << r.position.x << "," << r.position.y << "\n";
+			EXPECT_LE(r.size.height, 200) << "icon " << i << " frame " << frame;
+			EXPECT_LE(r.size.width, 260) << "icon " << i << " frame " << frame;
+		}
+	}
+	PreviewSave(out, "tips_burger.png");
+	oracool::CloseHudMenu();
+	ClearPanelStrings();
+	gnScreenWidth = savedWidth;
+	gnScreenHeight = savedHeight;
+	HeadlessMode = savedHeadless;
+}

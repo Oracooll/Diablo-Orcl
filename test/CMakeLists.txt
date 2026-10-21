@@ -93,3 +93,7 @@ foreach(test_target ${tests})
 endforeach()
 
 target_include_directories(writehero_test PRIVATE ../3rdParty/PicoSHA2)
+# Oracool: the audit binary passed MSVC's 65,536 sections (C1128, 2026-10-21, the tooltip audit's tests).
+if(MSVC)
+  target_compile_options(oracool_audit_test PRIVATE /bigobj)
+endif()

@@ -20,6 +20,7 @@
 #include "player.h"
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
+#include "utils/format_int.hpp" // FormatInteger - a gold pile's title
 #include "options.h"
 #include <cstdlib>
 #include <string>
@@ -443,6 +444,8 @@ constexpr int CardSpriteGap = 10;
 constexpr int CardMinInnerWidth = 180;
 /** @brief The widest a name may be and still be drawn at 24: past it, the name drops to 12 rather than the card growing. */
 constexpr int CardMaxTitleWidth24 = 250;
+/** @brief The widest a plain body line runs before it wraps (tooltip audit, 2026-10-21). */
+constexpr int CardMaxLineWidth = 320;
 constexpr int CardBulletIndent = 10;
 
 bool CardStartsWith(string_view text, string_view prefix)
@@ -596,6 +599,23 @@ Card BuildCard(const TooltipBlock &block, const Item *item)
 			isStone = true;
 			socketLinesLeft--;
 		}
+		// A long plain line wraps at the card's width (tooltip audit, 2026-10-21: a description of a hundred characters made the
+		// card as wide as the screen). Lines in several colours keep their one line - their runs are by character.
+		if (line.runs.empty() && line.tail == 0 && GetLineWidth(line.text) > CardMaxLineWidth) {
+			const std::string wrapped = WordWrapString(line.text, CardMaxLineWidth);
+			size_t from = 0;
+			for (;;) {
+				const size_t cut = wrapped.find('\n', from);
+				CardLine part = line;
+				part.text = wrapped.substr(from, cut == std::string::npos ? std::string::npos : cut - from);
+				card.body.push_back(std::move(part));
+				card.bullet.push_back(isStone && from == 0);
+				if (cut == std::string::npos)
+					break;
+				from = cut + 1;
+			}
+			continue;
+		}
 		card.body.push_back(line);
 		card.bullet.push_back(isStone);
 	}
@@ -670,6 +690,19 @@ ClxSprite CardSprite(const Item &item)
 	return GetInvItemSprite(item._iCurs + CURSOR_FIRSTITEM);
 }
 
+/**
+ * @brief Whether @p item has a picture the card can show: a frame the sheets hold, no larger than the largest item (2 x 3 cells).
+ * GetInvItemSprite does not check its index, and a frame number past the sheets read a "sprite" out of the CEL's data - its
+ * height thousands of pixels: the screen-high empty slot of the 2026-10-14 notes (tooltip audit, 2026-10-21).
+ */
+bool CardSpriteFits(const Item &item)
+{
+	if (item.isEmpty() || item._iCurs < 0 || static_cast<size_t>(item._iCurs) >= GetNumInvItems())
+		return false;
+	const ClxSprite sprite = CardSprite(item);
+	return sprite.width() > 0 && sprite.width() <= 2 * INV_SLOT_SIZE_PX + 8 && sprite.height() > 0 && sprite.height() <= 3 * INV_SLOT_SIZE_PX + 8;
+}
+
 CardLayout MeasureCard(const Card &card)
 {
 	CardLayout l;
@@ -679,7 +712,7 @@ CardLayout MeasureCard(const Card &card)
 	const int title24 = GetLineWidth(card.title.text, GameFont24, 1);
 	l.titleFont = title24 <= CardMaxTitleWidth24 ? GameFont24 : GameFont12;
 	l.titleHeight = l.titleFont == GameFont24 ? l.bigHeight : l.line;
-	if (card.item != nullptr && !card.item->isEmpty()) {
+	if (card.item != nullptr && CardSpriteFits(*card.item)) {
 		const ClxSprite sprite = CardSprite(*card.item);
 		l.sprite = { static_cast<int>(sprite.width()), static_cast<int>(sprite.height()) };
 	}
@@ -1069,6 +1102,18 @@ Point PlaceComparison(const Rectangle &hovered, const std::vector<Rectangle> &pl
 }
 
 /** @brief The hovered item as a card, with its worn counterparts beside it as the panel path does. */
+/** @brief Whether the panel's first line names @p item, as every item hover writes it (GetItemStr, CheckInvHLight, the stash). */
+bool PanelIsAboutItem(const Item *item)
+{
+	if (item == nullptr || item->isEmpty())
+		return false;
+	const std::string_view text = InfoString.str();
+	const std::string_view title = text.substr(0, text.find('\n'));
+	if (item->_itype == ItemType::Gold)
+		return title.find(FormatInteger(item->_ivalue)) != std::string_view::npos;
+	return title == item->getName();
+}
+
 void DrawCardTooltip(const Surface &out)
 {
 	const TooltipBlock hoveredBlock { std::string(InfoString.str()), InfoStringLineColors, InfoStringLineTailStart, InfoStringLineRuns };
@@ -1147,6 +1192,17 @@ void DrawCursorTooltip(const Surface &out)
 		}
 	}
 
+	// The item card only for the item's own text (tooltip audit, 2026-10-21: "tool tips game wide got enourmous"). An item hover
+	// flag outlives its frame in places - the hover pass runs 20 times a second, the windows' own hovers write the panel every
+	// frame - and a skill's, a button's or an artisan's text then went out as an item card: unwrapped, with that item's picture
+	// slot beside it. Text that is not the hovered item's name goes out as the hint card it is.
+	const Item *cardItem = HoveredCardItem();
+	if (IsHoveringItem() && !PanelIsAboutItem(cardItem) && !out.isIndexed()) {
+		HintCardText = std::string(InfoString.str());
+		HintCardColors.assign(InfoStringLineColors.begin(), InfoStringLineColors.end());
+		DrawHintCard(out);
+		return;
+	}
 	const bool asPanel = IsHoveringItem();
 	// The card (2026-09-26), behind its option; the panel below is the look it replaced, untouched, for
 	// the option's OFF - and for an indexed surface, which the card's plate cannot shade.
