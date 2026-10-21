@@ -23975,3 +23975,40 @@ TEST(OracoolPreview, DISABLED_TownDesertDoor)
 	PreviewSave(out, "town_desert_door.png");
 	leveltype = savedType;
 }
+
+// The Hive's and the Crypt's loading screens, by their colours (user, 2026-10-21: "loading screens of hive and crypt are switched
+// again ... we fix it a long time ago"). Fixed at v1.12.201 by swapping the files, undone eight days later when v1.12.261's 21:9
+// paintings were saved under the old wrong names. The Nest loads nlevels\cutl6 and the Crypt nlevels\cutl5 (interfac.cpp, Hellfire's
+// own numbering): cutl6 must be the hive - warm, orange-brown - and cutl5 the crypt - cold grey stone.
+TEST(OracoolAudit, HiveAndCryptLoadingScreensWearTheirOwnPaintings)
+{
+	std::string dir = __FILE__;
+	dir = dir.substr(0, dir.find_last_of("/\\") + 1) + "../Packaging/resources/oracool_assets/nlevels/";
+	const auto warmth = [&](const char *name) {
+		SDL_Surface *png = IMG_LoadPNG((dir + name).c_str());
+		if (png == nullptr)
+			return -1000.0;
+		SDL_Surface *rgba = SDL_ConvertSurfaceFormat(png, SDL_PIXELFORMAT_ABGR8888, 0);
+		SDL_FreeSurface(png);
+		if (rgba == nullptr)
+			return -1000.0;
+		double r = 0, b = 0;
+		int n = 0;
+		const auto *px = static_cast<const uint8_t *>(rgba->pixels);
+		for (int y = 0; y < rgba->h; y += 8) {
+			for (int x = 0; x < rgba->w; x += 8) {
+				const uint8_t *q = px + static_cast<size_t>(y) * rgba->pitch + static_cast<size_t>(x) * 4;
+				r += q[0];
+				b += q[2];
+				n++;
+			}
+		}
+		SDL_FreeSurface(rgba);
+		return (r - b) / std::max(n, 1); // red over blue: the hive's amber against the crypt's grey
+	};
+	const double crypt = warmth("cutl5.png");
+	const double hive = warmth("cutl6.png");
+	ASSERT_GT(crypt, -1000.0) << "cutl5.png did not load";
+	ASSERT_GT(hive, -1000.0) << "cutl6.png did not load";
+	EXPECT_GT(hive, crypt + 10.0) << "cutl6 (the Hive's screen) should be the warm hive painting and cutl5 (the Crypt's) the grey crypt";
+}
